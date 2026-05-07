@@ -1,0 +1,22 @@
+# Runtime dependencies (pinned for reproducibility; keep in sync with pyproject.toml)
+click>=8.1
+rich>=13.0
+langchain>=0.2
+langchain-community>=0.2
+langchain-openai>=0.1
+langchain-anthropic>=0.1
+chromadb>=0.5
+openai>=1.0
+watchdog>=4.0
+pydantic>=2.0
+python-dotenv>=1.0
+tiktoken>=0.7
+chardet>=5.0
+
+# Dev / test extras
+pytest>=8.0
+pytest-cov>=5.0
+pytest-mock>=3.14
+black>=24.0
+ruff>=0.4
+mypy>=1.10
