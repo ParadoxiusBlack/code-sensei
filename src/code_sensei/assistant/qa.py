@@ -21,6 +21,11 @@ from dataclasses import dataclass, field
 from ..retrieval.retriever import RetrievalResult, Retriever
 from ._base import _BaseAssistant
 
+try:
+    from config.settings import RETRIEVAL_ONLY_MODE
+except ImportError:
+    RETRIEVAL_ONLY_MODE = False
+
 logger = logging.getLogger(__name__)
 
 _SYSTEM_PROMPT = """\
@@ -86,6 +91,7 @@ class CodeQA(_BaseAssistant):
         question: str,
         language_filter: str | None = None,
         path_prefix: str | None = None,
+        use_llm: bool = True,
     ) -> QAResponse:
         """
         Answer a natural-language question about the codebase.
@@ -98,6 +104,8 @@ class CodeQA(_BaseAssistant):
             Restrict retrieval to a specific language.
         path_prefix:
             Restrict retrieval to files under this path prefix.
+        use_llm:
+            If False, return raw retrieval results without LLM summary.
 
         Returns
         -------
@@ -112,6 +120,17 @@ class CodeQA(_BaseAssistant):
             path_prefix=path_prefix,
         )
 
+        # Retrieval-only mode: skip LLM and return formatted chunks
+        if not use_llm or RETRIEVAL_ONLY_MODE:
+            context = self._format_context(results)
+            return QAResponse(
+                question=question,
+                answer=context,
+                sources=sorted({r.source_path for r in results}),
+                retrieval_results=results,
+            )
+
+        # Normal mode: use LLM to synthesize answer
         context = self._format_context(results)
         prompt = _QA_PROMPT_TEMPLATE.format(context=context, question=question)
         answer = self._invoke(_SYSTEM_PROMPT + "\n\n" + prompt)

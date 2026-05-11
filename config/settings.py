@@ -51,12 +51,20 @@ AZURE_OPENAI_ENDPOINT: str = _get("AZURE_OPENAI_ENDPOINT")
 AZURE_OPENAI_API_VERSION: str = _get("AZURE_OPENAI_API_VERSION", "2024-02-01")
 AZURE_OPENAI_DEPLOYMENT: str = _get("AZURE_OPENAI_DEPLOYMENT")
 
+# Ollama configuration (for local LLM inference)
+OLLAMA_BASE_URL: str = _get("OLLAMA_BASE_URL", "http://localhost:11434")
+OLLAMA_MODEL: str = _get("OLLAMA_MODEL", "mistral")
+OLLAMA_ENABLED: bool = _get("OLLAMA_ENABLED", "false").lower() in ("true", "1", "yes")
+
+# Hybrid LLM mode: try Ollama first, fall back to OpenAI
+HYBRID_LLM_MODE: bool = _get("HYBRID_LLM_MODE", "true").lower() in ("true", "1", "yes")
+
 # ---------------------------------------------------------------------------
 # Embedding model
 # ---------------------------------------------------------------------------
 
-EMBEDDING_MODEL: str = _get("EMBEDDING_MODEL", "text-embedding-3-large")
-EMBEDDING_PROVIDER: str = _get("EMBEDDING_PROVIDER", "openai")
+EMBEDDING_MODEL: str = _get("EMBEDDING_MODEL", "nomic-embed-text")
+EMBEDDING_PROVIDER: str = _get("EMBEDDING_PROVIDER", "ollama")
 
 # ---------------------------------------------------------------------------
 # Vector store
@@ -72,6 +80,9 @@ CHROMA_PERSIST_DIR: Path = Path(_get("CHROMA_PERSIST_DIR", ".chroma"))
 CHAT_MODEL: str = _get("CHAT_MODEL", "gpt-4o")
 TEMPERATURE: float = _get_float("TEMPERATURE", 0.2)
 MAX_TOKENS: int = _get_int("MAX_TOKENS", 2048)
+
+# Retrieval-only mode: show code chunks without LLM summaries
+RETRIEVAL_ONLY_MODE: bool = _get("RETRIEVAL_ONLY_MODE", "false").lower() in ("true", "1", "yes")
 
 # ---------------------------------------------------------------------------
 # Chunking

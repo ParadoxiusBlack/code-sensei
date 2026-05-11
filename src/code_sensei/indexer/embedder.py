@@ -2,7 +2,7 @@
 indexer/embedder.py
 -------------------
 Generates vector embeddings for ``Chunk`` objects using the configured
-embedding provider (OpenAI by default).
+embedding provider (Ollama by default).
 
 Design notes
 ~~~~~~~~~~~~
@@ -24,10 +24,11 @@ from typing import Sequence
 from .chunker import Chunk
 
 try:
-    from config.settings import EMBEDDING_MODEL, EMBEDDING_PROVIDER
+    from config.settings import EMBEDDING_MODEL, EMBEDDING_PROVIDER, OLLAMA_BASE_URL
 except ImportError:
-    EMBEDDING_MODEL = "text-embedding-3-large"
-    EMBEDDING_PROVIDER = "openai"
+    EMBEDDING_MODEL = "nomic-embed-text"
+    EMBEDDING_PROVIDER = "ollama"
+    OLLAMA_BASE_URL = "http://localhost:11434"
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +56,7 @@ class Embedder:
     model:
         Embedding model name (default: ``EMBEDDING_MODEL`` from settings).
     provider:
-        Embedding provider — ``"openai"`` or ``"azure_openai"``
+        Embedding provider — ``"ollama"``, ``"openai"`` or ``"azure_openai"``
         (default: ``EMBEDDING_PROVIDER`` from settings).
     batch_size:
         Number of chunks to embed per API call.
@@ -99,18 +100,24 @@ class Embedder:
     def _build_model(self):  # type: ignore[return]
         """Instantiate the embedding model from the configured provider."""
         try:
+            if self.provider == "ollama":
+                from langchain_ollama import OllamaEmbeddings
+
+                return OllamaEmbeddings(model=self.model, base_url=OLLAMA_BASE_URL)
             if self.provider == "azure_openai":
                 from langchain_openai import AzureOpenAIEmbeddings
 
                 return AzureOpenAIEmbeddings(model=self.model)
-            else:
+            if self.provider == "openai":
                 from langchain_openai import OpenAIEmbeddings
 
                 return OpenAIEmbeddings(model=self.model)
+
+            raise ValueError(f"Unsupported embedding provider: {self.provider}")
         except Exception as exc:
             logger.warning(
                 "Could not load embedding model (%s). "
-                "Embedder will return zero vectors until a valid API key is set. "
+                "Embedder will return zero vectors until the provider is available. "
                 "Error: %s",
                 self.model,
                 exc,

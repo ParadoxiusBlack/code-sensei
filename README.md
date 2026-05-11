@@ -56,7 +56,8 @@ to understand your codebase and provide intelligent developer assistance.
 ### 1 — Prerequisites
 
 - Python ≥ 3.10
-- An OpenAI (or Azure OpenAI / Anthropic) API key
+- Ollama installed (for fully local/offline usage)
+- Optional: OpenAI (or Azure OpenAI / Anthropic) API key
 
 ### 2 — Install
 
@@ -77,22 +78,30 @@ pip install -e ".[dev]"
 
 ```bash
 cp .env.example .env
-# Edit .env and set OPENAI_API_KEY (and any other values)
+# Local-first defaults already use Ollama for chat + embeddings.
+# Optional: add OPENAI_API_KEY for cloud fallback.
 ```
 
-### 4 — Index your codebase
+### 4 — Pull local models
+
+```bash
+ollama pull mistral
+ollama pull nomic-embed-text
+```
+
+### 5 — Index your codebase
 
 ```bash
 code-sensei index /path/to/your/project
 ```
 
-### 5 — Ask questions
+### 6 — Ask questions
 
 ```bash
 code-sensei ask "What does the FileLoader class do?" -p /path/to/your/project
 ```
 
-### 6 — Interactive chat
+### 7 — Interactive chat
 
 ```bash
 code-sensei chat -p /path/to/your/project
@@ -144,7 +153,7 @@ code-sensei/
 │       ├── indexer/
 │       │   ├── file_loader.py   # Walk & load source files
 │       │   ├── chunker.py       # Chunk files for embedding
-│       │   ├── embedder.py      # Generate embeddings (OpenAI)
+│       │   ├── embedder.py      # Generate embeddings (Ollama/OpenAI/Azure)
 │       │   └── watcher.py       # File-system watcher (watchdog)
 │       ├── retrieval/
 │       │   ├── vector_store.py  # ChromaDB wrapper

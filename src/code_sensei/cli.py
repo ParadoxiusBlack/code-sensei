@@ -19,6 +19,7 @@ status  — Show the current index statistics.
 from __future__ import annotations
 
 import logging
+import re
 import sys
 from pathlib import Path
 
@@ -52,13 +53,32 @@ def _load_pipeline(project_dir: Path):
     from code_sensei.retrieval.retriever import Retriever
     from code_sensei.retrieval.vector_store import VectorStore
 
-    collection = project_dir.name or "code_sensei_default"
+    collection = _collection_name_for_project(project_dir)
     vector_store = VectorStore(collection_name=collection)
     vector_store.connect()
 
     embedder = Embedder()
     retriever = Retriever(vector_store=vector_store, embedder=embedder)
     return vector_store, embedder, retriever
+
+
+def _sanitize_collection_part(value: str) -> str:
+    """Convert provider/model names into a stable Chroma-safe token."""
+    return re.sub(r"[^a-zA-Z0-9_-]+", "_", value).strip("_").lower() or "default"
+
+
+def _collection_name_for_project(project_dir: Path) -> str:
+    """Derive collection name from project + embedding config to avoid dim collisions."""
+    project_name = project_dir.name or "code_sensei_default"
+    try:
+        from config.settings import EMBEDDING_MODEL, EMBEDDING_PROVIDER
+    except ImportError:
+        EMBEDDING_MODEL = "nomic-embed-text"
+        EMBEDDING_PROVIDER = "ollama"
+
+    provider = _sanitize_collection_part(EMBEDDING_PROVIDER)
+    model = _sanitize_collection_part(EMBEDDING_MODEL)
+    return f"{project_name}__{provider}__{model}"
 
 
 # ---------------------------------------------------------------------------
@@ -106,7 +126,7 @@ def index(ctx: click.Context, project_dir: str, extensions: tuple[str, ...]) -> 
     loader = FileLoader(root=root, extensions=extra_exts)
     chunker = Chunker()
     embedder = Embedder()
-    collection = root.name or "code_sensei_default"
+    collection = _collection_name_for_project(root)
     vector_store = VectorStore(collection_name=collection)
     vector_store.connect()
 
@@ -147,6 +167,7 @@ def index(ctx: click.Context, project_dir: str, extensions: tuple[str, ...]) -> 
 )
 @click.option("--top-k", "-k", default=8, show_default=True, help="Chunks to retrieve.")
 @click.option("--language", "-l", default=None, help="Filter by language.")
+@click.option("--no-llm", is_flag=True, help="Show raw chunks without LLM summary.")
 @click.pass_context
 def ask(
     ctx: click.Context,
@@ -154,6 +175,7 @@ def ask(
     project_dir: str,
     top_k: int,
     language: str | None,
+    no_llm: bool,
 ) -> None:
     """Ask a natural-language question about the indexed codebase."""
     root = Path(project_dir).resolve()
@@ -164,7 +186,7 @@ def ask(
     qa = CodeQA(retriever=retriever, top_k=top_k)
 
     with console.status("[bold cyan]Thinking…[/]"):
-        response = qa.ask(question=question, language_filter=language)
+        response = qa.ask(question=question, language_filter=language, use_llm=not no_llm)
 
     console.print(Panel(Markdown(response.answer), title="[bold]Answer[/]", expand=False))
 
@@ -310,8 +332,11 @@ def docs(
     "--session-id", "-s", default="default", show_default=True,
     help="Session ID for persistent conversation memory.",
 )
+@click.option(
+    "--no-llm", is_flag=True, help="Start in retrieval-only mode (no LLM)."
+)
 @click.pass_context
-def chat(ctx: click.Context, project_dir: str, session_id: str) -> None:
+def chat(ctx: click.Context, project_dir: str, session_id: str, no_llm: bool) -> None:
     """Start an interactive multi-turn chat session."""
     root = Path(project_dir).resolve()
 
@@ -323,13 +348,18 @@ def chat(ctx: click.Context, project_dir: str, session_id: str) -> None:
     cache = SqliteCache()
     memory = ConversationMemory(session_id=session_id, cache=cache)
     qa = CodeQA(retriever=retriever)
+    
+    # Track whether to use LLM
+    use_llm = not no_llm
 
     console.print(
         Panel(
             "[bold cyan]CodeSensei Chat[/]\n"
             "Type your question and press Enter.  "
             "Type [bold]exit[/] or [bold]quit[/] to leave.  "
-            "Type [bold]/clear[/] to reset memory.",
+            "Type [bold]/clear[/] to reset memory.\n"
+            f"Type [bold]/llm-off[/] or [bold]/llm-on[/] to toggle LLM mode. "
+            f"(Currently: {'LLM enabled' if use_llm else 'Retrieval-only'})",
             expand=False,
         )
     )
@@ -350,10 +380,18 @@ def chat(ctx: click.Context, project_dir: str, session_id: str) -> None:
             memory.clear()
             console.print("[dim]Conversation memory cleared.[/]")
             continue
+        if question == "/llm-off":
+            use_llm = False
+            console.print("[dim]Switched to retrieval-only mode (no LLM).[/]")
+            continue
+        if question == "/llm-on":
+            use_llm = True
+            console.print("[dim]Switched to LLM mode.[/]")
+            continue
 
         memory.add_user_message(question)
         with console.status("[bold cyan]Thinking…[/]"):
-            response = qa.ask(question=question)
+            response = qa.ask(question=question, use_llm=use_llm)
 
         memory.add_assistant_message(response.answer)
         console.print(Panel(Markdown(response.answer), title="[bold]CodeSensei[/]", expand=False))
@@ -375,7 +413,7 @@ def status(ctx: click.Context, project_dir: str) -> None:
 
     from code_sensei.retrieval.vector_store import VectorStore
 
-    collection = root.name or "code_sensei_default"
+    collection = _collection_name_for_project(root)
     vs = VectorStore(collection_name=collection)
     vs.connect()
 
@@ -413,7 +451,7 @@ def watch(ctx: click.Context, project_dir: str) -> None:
 
     embedder = Embedder()
     chunker = Chunker()
-    collection = root.name or "code_sensei_default"
+    collection = _collection_name_for_project(root)
     vector_store = VectorStore(collection_name=collection)
     vector_store.connect()
     loader = FileLoader(root=root)

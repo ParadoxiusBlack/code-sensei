@@ -23,8 +23,8 @@ try:
     from config.settings import CHROMA_PERSIST_DIR, EMBEDDING_MODEL, EMBEDDING_PROVIDER
 except ImportError:
     CHROMA_PERSIST_DIR = Path(".chroma")
-    EMBEDDING_MODEL = "text-embedding-3-large"
-    EMBEDDING_PROVIDER = "openai"
+    EMBEDDING_MODEL = "nomic-embed-text"
+    EMBEDDING_PROVIDER = "ollama"
 
 from ..indexer.chunker import Chunk
 from ..indexer.embedder import EmbeddedChunk
