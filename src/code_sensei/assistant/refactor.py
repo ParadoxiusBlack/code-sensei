@@ -141,7 +141,120 @@ class RefactorAdvisor(_BaseAssistant):
         prompt = _REFACTOR_TEMPLATE.format(context=context)
         raw_response = self._invoke(_SYSTEM_PROMPT + "\n\n" + prompt)
 
+        suggestions = self._parse_suggestions(raw_response)
+
         return RefactorReport(
             target=target,
             raw_response=raw_response,
+            suggestions=suggestions,
         )
+
+    # ------------------------------------------------------------------
+    # Internals
+    # ------------------------------------------------------------------
+
+    def _parse_suggestions(self, response: str) -> list[RefactorSuggestion]:
+        """
+        Parse LLM response into structured RefactorSuggestion objects.
+
+        Expects the LLM to format suggestions as a numbered list grouped
+        by severity, with each suggestion containing severity, location,
+        problem, and suggested fix information.
+
+        Parameters
+        ----------
+        response:
+            Raw LLM response text.
+
+        Returns
+        -------
+        List of parsed RefactorSuggestion objects (may be empty if
+        parsing fails or LLM format is unexpected).
+        """
+        suggestions: list[RefactorSuggestion] = []
+
+        lines = response.split("\n")
+        current_severity = None
+        current_location = None
+        current_problem_lines: list[str] = []
+        current_suggestion_lines: list[str] = []
+        in_problem = False
+        in_suggestion = False
+
+        for line in lines:
+            stripped = line.strip()
+
+            # Skip empty lines
+            if not stripped:
+                continue
+
+            # Check for severity headers
+            if any(sev in stripped.lower() for sev in ["critical", "major", "minor", "style"]):
+                # Extract severity from the line
+                for sev in ["critical", "major", "minor", "style"]:
+                    if sev in stripped.lower():
+                        current_severity = sev
+                        break
+
+            # Check for location marker
+            elif stripped.lower().startswith("location:"):
+                if current_location and current_problem_lines:
+                    # Save previous suggestion before starting new one
+                    if current_severity:
+                        suggestions.append(
+                            RefactorSuggestion(
+                                severity=current_severity,
+                                location=current_location,
+                                problem=" ".join(current_problem_lines),
+                                suggestion=" ".join(current_suggestion_lines),
+                            )
+                        )
+                current_location = stripped[len("location:"):].strip()
+                current_problem_lines = []
+                current_suggestion_lines = []
+                in_problem = True
+                in_suggestion = False
+
+            # Check for problem/issue marker
+            elif stripped.lower().startswith("problem:"):
+                in_problem = True
+                in_suggestion = False
+                problem_text = stripped[len("problem:"):].strip()
+                if problem_text:
+                    current_problem_lines.append(problem_text)
+
+            # Check for suggestion marker
+            elif stripped.lower().startswith("suggestion:") or stripped.lower().startswith("suggested fix:"):
+                in_suggestion = True
+                in_problem = False
+                suggestion_text = (
+                    stripped[len("suggestion:"):].strip()
+                    if stripped.lower().startswith("suggestion:")
+                    else stripped[len("suggested fix:"):].strip()
+                )
+                if suggestion_text:
+                    current_suggestion_lines.append(suggestion_text)
+
+            # Continue accumulating lines
+            else:
+                if in_problem:
+                    current_problem_lines.append(stripped)
+                elif in_suggestion:
+                    current_suggestion_lines.append(stripped)
+
+        # Don't forget the last suggestion
+        if current_severity and current_location and current_problem_lines:
+            suggestions.append(
+                RefactorSuggestion(
+                    severity=current_severity,
+                    location=current_location,
+                    problem=" ".join(current_problem_lines),
+                    suggestion=" ".join(current_suggestion_lines),
+                )
+            )
+
+        logger.debug(
+            "Parsed %d refactor suggestions from LLM response",
+            len(suggestions),
+        )
+        return suggestions
