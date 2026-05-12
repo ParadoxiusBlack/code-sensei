@@ -38,6 +38,50 @@ console = Console()
 # ---------------------------------------------------------------------------
 
 
+def _warn_panel(message: str, hint: str | None = None) -> None:
+    """Print a yellow warning panel to the console."""
+    body = message if hint is None else f"{message}\n\n[dim]{hint}[/dim]"
+    console.print(Panel(body, title="[bold yellow]Warning[/]", border_style="yellow", expand=False))
+
+
+def _error_panel(message: str, hint: str | None = None) -> None:
+    """Print a red error panel to the console."""
+    body = message if hint is None else f"{message}\n\n[bold]{hint}[/bold]"
+    console.print(Panel(body, title="[bold red]Error[/]", border_style="red", expand=False))
+
+
+def _check_llm_status(assistant: object) -> None:
+    """Emit a warning panel when the LLM could not be initialised."""
+    err: str | None = getattr(assistant, "llm_init_error", None)
+    if err:
+        _warn_panel(
+            "[yellow]LLM is not available — running in retrieval-only mode.[/yellow]",
+            hint=err,
+        )
+
+
+def _check_embed_status(embedder: object) -> None:
+    """Emit a warning panel when the embedding model could not be initialised."""
+    err: str | None = getattr(embedder, "embed_init_error", None)
+    if err:
+        _warn_panel(
+            "[yellow]Embedding model is not available — results may be empty.[/yellow]",
+            hint=err,
+        )
+
+
+def _handle_vector_store_error(exc: Exception, collection: str) -> None:
+    """Print an actionable error panel for ChromaDB dimension / collection errors."""
+    from code_sensei.errors import VectorStoreDimensionError
+
+    exc_lower = str(exc).lower()
+    if "dimension" in exc_lower or "dimensionality" in exc_lower:
+        dim_err = VectorStoreDimensionError(collection)
+        _error_panel(str(dim_err), hint=dim_err.hint)
+    else:
+        _error_panel(f"Vector store error: {exc}")
+
+
 def _setup_logging(verbose: bool) -> None:
     level = logging.DEBUG if verbose else logging.WARNING
     logging.basicConfig(level=level, format="%(levelname)s — %(name)s — %(message)s")
@@ -48,6 +92,7 @@ def _load_pipeline(project_dir: Path):
     Build and return the shared (vector_store, embedder, retriever) triple.
 
     Kept in a helper so each sub-command can share the same setup logic.
+    Raises ``SystemExit`` on unrecoverable vector-store errors.
     """
     from code_sensei.indexer.embedder import Embedder
     from code_sensei.retrieval.retriever import Retriever
@@ -55,9 +100,14 @@ def _load_pipeline(project_dir: Path):
 
     collection = _collection_name_for_project(project_dir)
     vector_store = VectorStore(collection_name=collection)
-    vector_store.connect()
+    try:
+        vector_store.connect()
+    except Exception as exc:
+        _handle_vector_store_error(exc, collection)
+        sys.exit(1)
 
     embedder = Embedder()
+    _check_embed_status(embedder)
     retriever = Retriever(vector_store=vector_store, embedder=embedder)
     return vector_store, embedder, retriever
 
@@ -126,6 +176,7 @@ def index(ctx: click.Context, project_dir: str, extensions: tuple[str, ...]) -> 
     loader = FileLoader(root=root, extensions=extra_exts)
     chunker = Chunker()
     embedder = Embedder()
+    _check_embed_status(embedder)
     collection = _collection_name_for_project(root)
     vector_store = VectorStore(collection_name=collection)
     vector_store.connect()
@@ -133,20 +184,24 @@ def index(ctx: click.Context, project_dir: str, extensions: tuple[str, ...]) -> 
     total_files = 0
     total_chunks = 0
 
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        console=console,
-    ) as progress:
-        task = progress.add_task("Loading and indexing files…", total=None)
+    try:
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+        ) as progress:
+            task = progress.add_task("Loading and indexing files…", total=None)
 
-        for source_file in loader.load():
-            total_files += 1
-            progress.update(task, description=f"Indexing [cyan]{source_file.path.name}[/]…")
-            chunks = chunker.chunk_file(source_file)
-            embedded = embedder.embed_chunks(chunks)
-            vector_store.upsert(embedded)
-            total_chunks += len(chunks)
+            for source_file in loader.load():
+                total_files += 1
+                progress.update(task, description=f"Indexing [cyan]{source_file.path.name}[/]…")
+                chunks = chunker.chunk_file(source_file)
+                embedded = embedder.embed_chunks(chunks)
+                vector_store.upsert(embedded)
+                total_chunks += len(chunks)
+    except Exception as exc:
+        _handle_vector_store_error(exc, collection)
+        sys.exit(1)
 
     console.print(
         f"\n[green]✓[/] Indexed [bold]{total_files}[/] files, "
@@ -168,6 +223,7 @@ def index(ctx: click.Context, project_dir: str, extensions: tuple[str, ...]) -> 
 @click.option("--top-k", "-k", default=8, show_default=True, help="Chunks to retrieve.")
 @click.option("--language", "-l", default=None, help="Filter by language.")
 @click.option("--no-llm", is_flag=True, help="Show raw chunks without LLM summary.")
+@click.option("--stream/--no-stream", default=True, show_default=True, help="Stream answer output.")
 @click.pass_context
 def ask(
     ctx: click.Context,
@@ -176,6 +232,7 @@ def ask(
     top_k: int,
     language: str | None,
     no_llm: bool,
+    stream: bool,
 ) -> None:
     """Ask a natural-language question about the indexed codebase."""
     root = Path(project_dir).resolve()
@@ -184,15 +241,34 @@ def ask(
 
     _, _, retriever = _load_pipeline(root)
     qa = CodeQA(retriever=retriever, top_k=top_k)
+    _check_llm_status(qa)
 
-    with console.status("[bold cyan]Thinking…[/]"):
-        response = qa.ask(question=question, language_filter=language, use_llm=not no_llm)
+    if stream:
+        stream_iter, sources, _ = qa.ask_stream(
+            question=question,
+            language_filter=language,
+            use_llm=not no_llm,
+        )
+        parts: list[str] = []
+        console.print("[bold]Answer[/]")
+        for piece in stream_iter:
+            console.print(piece, end="")
+            parts.append(piece)
+        console.print("")
+        response_answer = "".join(parts)
+    else:
+        with console.status("[bold cyan]Thinking…[/]"):
+            response = qa.ask(question=question, language_filter=language, use_llm=not no_llm)
+        console.print(Panel(Markdown(response.answer), title="[bold]Answer[/]", expand=False))
+        sources = response.sources
+        response_answer = response.answer
 
-    console.print(Panel(Markdown(response.answer), title="[bold]Answer[/]", expand=False))
+    if stream and not response_answer.strip():
+        console.print("[dim]No response text returned.[/]")
 
-    if response.sources:
+    if sources:
         console.print("\n[dim]Sources:[/]")
-        for src in response.sources:
+        for src in sources:
             console.print(f"  [cyan]{src}[/]")
 
 
@@ -229,6 +305,7 @@ def generate_tests(
 
     _, _, retriever = _load_pipeline(root)
     gen = TestGenerator(retriever=retriever)
+    _check_llm_status(gen)
 
     with console.status(f"[bold cyan]Generating {framework} tests for {target}…[/]"):
         result = gen.generate(target=target, framework=framework)
@@ -265,6 +342,7 @@ def refactor(
 
     _, _, retriever = _load_pipeline(root)
     advisor = RefactorAdvisor(retriever=retriever)
+    _check_llm_status(advisor)
 
     with console.status("[bold cyan]Analysing code…[/]"):
         report = advisor.analyse(target=target, language_filter=language)
@@ -308,6 +386,7 @@ def docs(
 
     _, _, retriever = _load_pipeline(root)
     gen = DocGenerator(retriever=retriever)
+    _check_llm_status(gen)
 
     with console.status(f"[bold cyan]Generating {doc_type} documentation…[/]"):
         result = gen.generate(target=target, doc_type=doc_type, style=style)
@@ -335,8 +414,9 @@ def docs(
 @click.option(
     "--no-llm", is_flag=True, help="Start in retrieval-only mode (no LLM)."
 )
+@click.option("--stream/--no-stream", default=True, show_default=True, help="Stream answer output.")
 @click.pass_context
-def chat(ctx: click.Context, project_dir: str, session_id: str, no_llm: bool) -> None:
+def chat(ctx: click.Context, project_dir: str, session_id: str, no_llm: bool, stream: bool) -> None:
     """Start an interactive multi-turn chat session."""
     root = Path(project_dir).resolve()
 
@@ -348,7 +428,8 @@ def chat(ctx: click.Context, project_dir: str, session_id: str, no_llm: bool) ->
     cache = SqliteCache()
     memory = ConversationMemory(session_id=session_id, cache=cache)
     qa = CodeQA(retriever=retriever)
-    
+    _check_llm_status(qa)
+
     # Track whether to use LLM
     use_llm = not no_llm
 
@@ -359,7 +440,8 @@ def chat(ctx: click.Context, project_dir: str, session_id: str, no_llm: bool) ->
             "Type [bold]exit[/] or [bold]quit[/] to leave.  "
             "Type [bold]/clear[/] to reset memory.\n"
             f"Type [bold]/llm-off[/] or [bold]/llm-on[/] to toggle LLM mode. "
-            f"(Currently: {'LLM enabled' if use_llm else 'Retrieval-only'})",
+            f"(Currently: {'LLM enabled' if use_llm else 'Retrieval-only'}, "
+            f"{'streaming on' if stream else 'streaming off'})",
             expand=False,
         )
     )
@@ -388,13 +470,32 @@ def chat(ctx: click.Context, project_dir: str, session_id: str, no_llm: bool) ->
             use_llm = True
             console.print("[dim]Switched to LLM mode.[/]")
             continue
+        if question == "/stream-off":
+            stream = False
+            console.print("[dim]Switched streaming off.[/]")
+            continue
+        if question == "/stream-on":
+            stream = True
+            console.print("[dim]Switched streaming on.[/]")
+            continue
 
         memory.add_user_message(question)
-        with console.status("[bold cyan]Thinking…[/]"):
-            response = qa.ask(question=question, use_llm=use_llm)
+        if stream:
+            stream_iter, _, _ = qa.ask_stream(question=question, use_llm=use_llm)
+            parts: list[str] = []
+            console.print("[bold cyan]CodeSensei:[/] ", end="")
+            for piece in stream_iter:
+                console.print(piece, end="")
+                parts.append(piece)
+            console.print("")
+            answer = "".join(parts)
+        else:
+            with console.status("[bold cyan]Thinking…[/]"):
+                response = qa.ask(question=question, use_llm=use_llm)
+            answer = response.answer
+            console.print(Panel(Markdown(answer), title="[bold]CodeSensei[/]", expand=False))
 
-        memory.add_assistant_message(response.answer)
-        console.print(Panel(Markdown(response.answer), title="[bold]CodeSensei[/]", expand=False))
+        memory.add_assistant_message(answer)
 
 
 # ---------------------------------------------------------------------------

@@ -31,3 +31,35 @@ def test_invoke_handles_message_like_response():
     result = assistant._invoke("hello")
 
     assert result == "message response"
+
+
+def test_invoke_stream_yields_string_chunks():
+    mock_llm = SimpleNamespace(stream=lambda _messages: iter(["a", "b", "c"]))
+    assistant = _make_assistant_with_llm(mock_llm)
+
+    result = "".join(assistant._invoke_stream("hello"))
+
+    assert result == "abc"
+
+
+def test_invoke_stream_yields_message_chunks():
+    mock_llm = SimpleNamespace(
+        stream=lambda _messages: iter([
+            SimpleNamespace(content="a"),
+            SimpleNamespace(content="b"),
+        ])
+    )
+    assistant = _make_assistant_with_llm(mock_llm)
+
+    result = "".join(assistant._invoke_stream("hello"))
+
+    assert result == "ab"
+
+
+def test_invoke_stream_falls_back_to_invoke_when_stream_unavailable():
+    mock_llm = SimpleNamespace(invoke=lambda _messages: "full answer")
+    assistant = _make_assistant_with_llm(mock_llm)
+
+    result = "".join(assistant._invoke_stream("hello"))
+
+    assert result == "full answer"

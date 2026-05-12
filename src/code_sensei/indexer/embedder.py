@@ -30,6 +30,13 @@ except ImportError:
     EMBEDDING_PROVIDER = "ollama"
     OLLAMA_BASE_URL = "http://localhost:11434"
 
+try:
+    from ..errors import EmbeddingModelError, ModelNotFoundError, OllamaConnectionError
+except ImportError:
+    EmbeddingModelError = Exception  # type: ignore[misc,assignment]
+    ModelNotFoundError = Exception  # type: ignore[misc,assignment]
+    OllamaConnectionError = Exception  # type: ignore[misc,assignment]
+
 logger = logging.getLogger(__name__)
 
 _DEFAULT_BATCH_SIZE = 100
@@ -71,6 +78,8 @@ class Embedder:
         self.model = model or EMBEDDING_MODEL
         self.provider = provider or EMBEDDING_PROVIDER
         self.batch_size = batch_size
+        #: Human-readable explanation of why embeddings are unavailable (None = OK).
+        self.embed_init_error: str | None = None
         self._embedding_model = self._build_model()
 
     # ------------------------------------------------------------------
@@ -98,7 +107,10 @@ class Embedder:
     # ------------------------------------------------------------------
 
     def _build_model(self):  # type: ignore[return]
-        """Instantiate the embedding model from the configured provider."""
+        """Instantiate the embedding model from the configured provider.
+
+        On failure sets ``self.embed_init_error`` with an actionable message.
+        """
         try:
             if self.provider == "ollama":
                 from langchain_ollama import OllamaEmbeddings
@@ -115,6 +127,26 @@ class Embedder:
 
             raise ValueError(f"Unsupported embedding provider: {self.provider}")
         except Exception as exc:
+            exc_lower = str(exc).lower()
+            if (
+                "connection refused" in exc_lower
+                or "connect error" in exc_lower
+                or "connectionerror" in exc_lower
+                or "cannot connect" in exc_lower
+            ):
+                conn_err = OllamaConnectionError(OLLAMA_BASE_URL)
+                self.embed_init_error = (
+                    f"Embedding model unavailable — Ollama is not running. "
+                    f"Hint: {conn_err.hint}"
+                )
+            elif "not found" in exc_lower or "404" in exc_lower:
+                model_err = ModelNotFoundError(self.model)
+                self.embed_init_error = f"{model_err}  Hint: {model_err.hint}"
+            else:
+                self.embed_init_error = (
+                    f"Could not load embedding model '{self.model}' "
+                    f"({self.provider}): {exc}"
+                )
             logger.warning(
                 "Could not load embedding model (%s). "
                 "Embedder will return zero vectors until the provider is available. "

@@ -198,8 +198,8 @@ black src/ tests/
 ## Roadmap
 
 - [x] Phase 1 — Scaffold: project structure, indexer pipeline, vector store
-- [ ] Phase 2 — Retrieval: improve ranking, add hybrid BM25 + vector search
-- [ ] Phase 3 — Features: refine prompts, add streaming responses
+- [x] Phase 2 — Retrieval: improve ranking, add hybrid BM25 + vector search
+- [ ] Phase 3 — Features: refine prompts, advanced error handling, performance tuning
 - [ ] Phase 4 — GUI: PyQt6 or Electron front-end, code viewer
 
 ---

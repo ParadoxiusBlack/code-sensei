@@ -16,8 +16,9 @@ context string from ``RetrievalResult`` objects, and sensible defaults.
 from __future__ import annotations
 
 import logging
-from typing import Sequence
+from typing import Iterator, Sequence
 
+from ..errors import ModelNotFoundError, OllamaConnectionError
 from ..retrieval.retriever import RetrievalResult
 
 try:
@@ -65,6 +66,8 @@ class _BaseAssistant:
         self.model = model or CHAT_MODEL
         self.temperature = temperature if temperature is not None else TEMPERATURE
         self.max_tokens = max_tokens if max_tokens is not None else MAX_TOKENS
+        #: Human-readable explanation of why the LLM is unavailable (None = OK).
+        self.llm_init_error: str | None = None
         self._llm = self._build_llm()
 
     # ------------------------------------------------------------------
@@ -87,7 +90,12 @@ class _BaseAssistant:
                     logger.info("Using OpenAI LLM (%s)", self.model)
                     return llm
             
-            # No LLM available
+            # No LLM available — preserve the most helpful hint for the CLI.
+            if not self.llm_init_error:
+                self.llm_init_error = (
+                    "No LLM is available. Ollama is not running and no OpenAI API key "
+                    "is configured. Run 'ollama serve' to start Ollama."
+                )
             logger.warning(
                 "No LLM available: Ollama not running and no OpenAI API key. "
                 "Using retrieval-only mode (showing raw code chunks)."
@@ -114,7 +122,11 @@ class _BaseAssistant:
                 return None
 
     def _try_ollama(self):  # type: ignore[return]
-        """Attempt to connect to local Ollama instance."""
+        """Attempt to connect to local Ollama instance.
+
+        On failure sets ``self.llm_init_error`` with an actionable message
+        so the CLI can surface it to the user.
+        """
         try:
             from langchain_ollama import OllamaLLM
 
@@ -127,7 +139,24 @@ class _BaseAssistant:
             llm.invoke("test")
             return llm
         except Exception as exc:
-            logger.debug("Ollama not available: %s", exc)
+            exc_lower = str(exc).lower()
+            if (
+                "connection refused" in exc_lower
+                or "connect error" in exc_lower
+                or "connectionerror" in exc_lower
+                or "cannot connect" in exc_lower
+                or "failed to connect" in exc_lower
+            ):
+                err = OllamaConnectionError(OLLAMA_BASE_URL)
+                self.llm_init_error = f"{err}  Hint: {err.hint}"
+                logger.debug("Ollama connection refused: %s", exc)
+            elif "not found" in exc_lower or "404" in exc_lower:
+                err = ModelNotFoundError(OLLAMA_MODEL)
+                self.llm_init_error = f"{err}  Hint: {err.hint}"
+                logger.debug("Ollama model not found: %s", exc)
+            else:
+                self.llm_init_error = f"Ollama unavailable: {exc}"
+                logger.debug("Ollama not available: %s", exc)
             return None
 
     def _try_openai(self):  # type: ignore[return]
@@ -172,17 +201,60 @@ class _BaseAssistant:
             from langchain_core.messages import HumanMessage
 
             response = self._llm.invoke([HumanMessage(content=prompt)])
-
-            # Chat models usually return message objects with `.content`,
-            # while some local LLM wrappers can return plain strings.
-            if isinstance(response, str):
-                return response
-
-            content = getattr(response, "content", None)
-            if isinstance(content, str):
-                return content
-
-            return str(response)
+            return self._response_to_text(response)
         except Exception as exc:
             logger.error("LLM invocation failed: %s", exc)
             return f"[LLM error: {exc}]"
+
+    def _invoke_stream(self, prompt: str) -> Iterator[str]:
+        """Stream LLM output token/chunk-by-chunk where supported."""
+        if self._llm is None:
+            yield (
+                "[LLM not available — set a valid API key in .env to get real responses.]\n"
+                f"Prompt received:\n{prompt[:200]}..."
+            )
+            return
+
+        try:
+            from langchain_core.messages import HumanMessage
+
+            if hasattr(self._llm, "stream"):
+                for chunk in self._llm.stream([HumanMessage(content=prompt)]):
+                    text = self._response_to_text(chunk)
+                    if text:
+                        yield text
+                return
+
+            # Fallback for LLM wrappers that do not implement stream.
+            yield self._invoke(prompt)
+        except Exception as exc:
+            logger.error("LLM stream invocation failed: %s", exc)
+            yield f"[LLM error: {exc}]"
+
+    @staticmethod
+    def _response_to_text(response: object) -> str:
+        """Normalize different LangChain response shapes to plain text."""
+        if isinstance(response, str):
+            return response
+
+        content = getattr(response, "content", None)
+        if isinstance(content, str):
+            return content
+
+        if isinstance(content, list):
+            parts: list[str] = []
+            for item in content:
+                if isinstance(item, str):
+                    parts.append(item)
+                elif isinstance(item, dict):
+                    text = item.get("text")
+                    if isinstance(text, str):
+                        parts.append(text)
+            if parts:
+                return "".join(parts)
+
+        text_attr = getattr(response, "text", None)
+        if isinstance(text_attr, str):
+            return text_attr
+
+        return str(response)

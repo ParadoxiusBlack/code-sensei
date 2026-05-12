@@ -103,6 +103,25 @@ class TestCodeQA:
         call_kwargs = r.search.call_args.kwargs
         assert call_kwargs.get("path_prefix") == "/src/"
 
+    def test_ask_stream_returns_sources(self):
+        r = _make_retriever(_make_result(), _make_result())
+        qa = _make_assistant(CodeQA, retriever=r)
+        with patch.object(CodeQA, "_invoke_stream", return_value=iter(["hello", " world"])):
+            stream, sources, results = qa.ask_stream("explain")
+            text = "".join(stream)
+
+        assert text == "hello world"
+        assert len(sources) == 1
+        assert len(results) == 2
+
+    def test_ask_uses_stream_path_to_build_answer(self):
+        qa = _make_assistant(CodeQA)
+        with patch.object(CodeQA, "ask_stream", return_value=(iter(["a", "b"]), ["/src/foo.py"], [])):
+            response = qa.ask("q")
+
+        assert response.answer == "ab"
+        assert response.sources == ["/src/foo.py"]
+
 
 # ---------------------------------------------------------------------------
 # TestGenerator

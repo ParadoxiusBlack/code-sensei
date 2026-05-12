@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from typing import Iterator
 
 from ..retrieval.retriever import RetrievalResult, Retriever
 from ._base import _BaseAssistant
@@ -86,6 +87,37 @@ class CodeQA(_BaseAssistant):
     # Public API
     # ------------------------------------------------------------------
 
+    def ask_stream(
+        self,
+        question: str,
+        language_filter: str | None = None,
+        path_prefix: str | None = None,
+        use_llm: bool = True,
+    ) -> tuple[Iterator[str], list[str], list[RetrievalResult]]:
+        """Return a stream iterator plus source metadata for progressive output."""
+        logger.info("CodeQA.ask_stream: %s", question[:80])
+
+        results = self.retriever.search(
+            query=question,
+            top_k=self.top_k,
+            language_filter=language_filter,
+            path_prefix=path_prefix,
+        )
+
+        sources = sorted({r.source_path for r in results})
+
+        if not use_llm or RETRIEVAL_ONLY_MODE:
+            context = self._format_context(results)
+
+            def _single() -> Iterator[str]:
+                yield context
+
+            return _single(), sources, results
+
+        context = self._format_context(results)
+        prompt = _QA_PROMPT_TEMPLATE.format(context=context, question=question)
+        return self._invoke_stream(_SYSTEM_PROMPT + "\n\n" + prompt), sources, results
+
     def ask(
         self,
         question: str,
@@ -111,31 +143,13 @@ class CodeQA(_BaseAssistant):
         -------
         QAResponse
         """
-        logger.info("CodeQA.ask: %s", question[:80])
-
-        results = self.retriever.search(
-            query=question,
-            top_k=self.top_k,
+        stream, sources, results = self.ask_stream(
+            question=question,
             language_filter=language_filter,
             path_prefix=path_prefix,
+            use_llm=use_llm,
         )
-
-        # Retrieval-only mode: skip LLM and return formatted chunks
-        if not use_llm or RETRIEVAL_ONLY_MODE:
-            context = self._format_context(results)
-            return QAResponse(
-                question=question,
-                answer=context,
-                sources=sorted({r.source_path for r in results}),
-                retrieval_results=results,
-            )
-
-        # Normal mode: use LLM to synthesize answer
-        context = self._format_context(results)
-        prompt = _QA_PROMPT_TEMPLATE.format(context=context, question=question)
-        answer = self._invoke(_SYSTEM_PROMPT + "\n\n" + prompt)
-
-        sources = sorted({r.source_path for r in results})
+        answer = "".join(stream)
         return QAResponse(
             question=question,
             answer=answer,
