@@ -33,7 +33,13 @@ _SYSTEM_PROMPT = """\
 You are CodeSensei, an expert programming assistant with deep knowledge of the \
 user's codebase. Use the provided code context to answer the user's question \
 accurately and concisely. If the answer cannot be determined from the context, \
-say so clearly. Always cite the relevant file paths.
+say so clearly.
+
+Rules:
+- Do not invent functions, files, or behavior not present in context.
+- Cite relevant file paths for concrete claims.
+- Prefer a short direct answer first, then key supporting details.
+- If context is insufficient, say exactly what is missing.
 """
 
 _QA_PROMPT_TEMPLATE = """\
@@ -116,7 +122,8 @@ class CodeQA(_BaseAssistant):
 
         context = self._format_context(results)
         prompt = _QA_PROMPT_TEMPLATE.format(context=context, question=question)
-        return self._invoke_stream(_SYSTEM_PROMPT + "\n\n" + prompt), sources, results
+        full_prompt = self._compose_prompt(_SYSTEM_PROMPT, prompt)
+        return self._invoke_stream(full_prompt), sources, results
 
     def ask(
         self,

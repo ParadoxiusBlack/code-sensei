@@ -166,7 +166,7 @@ class DocGenerator(_BaseAssistant):
             extra_instructions=extra,
         )
 
-        content = self._invoke(_SYSTEM_PROMPT + "\n\n" + prompt)
+        content = self._invoke(self._compose_prompt(_SYSTEM_PROMPT, prompt))
 
         return DocResult(
             target=target,

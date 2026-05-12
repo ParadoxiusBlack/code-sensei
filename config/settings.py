@@ -84,6 +84,11 @@ MAX_TOKENS: int = _get_int("MAX_TOKENS", 2048)
 # Retrieval-only mode: show code chunks without LLM summaries
 RETRIEVAL_ONLY_MODE: bool = _get("RETRIEVAL_ONLY_MODE", "false").lower() in ("true", "1", "yes")
 
+# Context budgeting for prompt assembly (performance + relevance tuning)
+MAX_CONTEXT_CHARS: int = _get_int("MAX_CONTEXT_CHARS", 8000)
+MAX_CHARS_PER_CHUNK: int = _get_int("MAX_CHARS_PER_CHUNK", 1400)
+MAX_CHUNKS_PER_FILE: int = _get_int("MAX_CHUNKS_PER_FILE", 2)
+
 # ---------------------------------------------------------------------------
 # Chunking
 # ---------------------------------------------------------------------------

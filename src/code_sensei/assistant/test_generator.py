@@ -137,7 +137,7 @@ class TestGenerator(_BaseAssistant):
             language=inferred_language,
         )
 
-        test_code = self._invoke(_SYSTEM_PROMPT + "\n\n" + prompt)
+        test_code = self._invoke(self._compose_prompt(_SYSTEM_PROMPT, prompt))
 
         return TestGenerationResult(
             source_path=target,

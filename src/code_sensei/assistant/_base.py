@@ -30,6 +30,9 @@ try:
         OLLAMA_BASE_URL,
         OLLAMA_MODEL,
         OPENAI_API_KEY,
+        MAX_CONTEXT_CHARS,
+        MAX_CHARS_PER_CHUNK,
+        MAX_CHUNKS_PER_FILE,
     )
 except ImportError:
     CHAT_MODEL = "gpt-4o"
@@ -39,6 +42,9 @@ except ImportError:
     OLLAMA_BASE_URL = "http://localhost:11434"
     OLLAMA_MODEL = "mistral"
     OPENAI_API_KEY = ""
+    MAX_CONTEXT_CHARS = 8000
+    MAX_CHARS_PER_CHUNK = 1400
+    MAX_CHUNKS_PER_FILE = 2
 
 logger = logging.getLogger(__name__)
 
@@ -176,19 +182,58 @@ class _BaseAssistant:
     def _format_context(
         self,
         results: Sequence[RetrievalResult],
-        max_chars: int = 8000,
+        max_chars: int | None = None,
+        max_chars_per_chunk: int | None = None,
+        max_chunks_per_file: int | None = None,
     ) -> str:
-        """Build a context string from retrieval results, respecting a char budget."""
+        """Build context string with budgeted, deduplicated, file-balanced chunks."""
+        if not results:
+            return "[No relevant indexed context found.]"
+
+        max_chars = MAX_CONTEXT_CHARS if max_chars is None else max_chars
+        max_chars_per_chunk = (
+            MAX_CHARS_PER_CHUNK if max_chars_per_chunk is None else max_chars_per_chunk
+        )
+        max_chunks_per_file = (
+            MAX_CHUNKS_PER_FILE if max_chunks_per_file is None else max_chunks_per_file
+        )
+
         parts: list[str] = []
         used = 0
+        seen_keys: set[tuple[str, str]] = set()
+        per_file_counts: dict[str, int] = {}
+
         for r in results:
+            file_count = per_file_counts.get(r.source_path, 0)
+            if file_count >= max_chunks_per_file:
+                continue
+
+            # Drop near-duplicate chunks to keep prompt budget focused.
+            dedupe_key = (r.source_path, r.content[:200])
+            if dedupe_key in seen_keys:
+                continue
+            seen_keys.add(dedupe_key)
+
+            content = r.content
+            if len(content) > max_chars_per_chunk:
+                content = content[:max_chars_per_chunk].rstrip() + "\n# ...truncated"
+
             header = f"# File: {r.source_path} (lang: {r.language}, score: {r.score:.2f})\n"
-            block = f"{header}```{r.language}\n{r.content}\n```\n"
+            block = f"{header}```{r.language}\n{content}\n```\n"
             if used + len(block) > max_chars:
                 break
             parts.append(block)
             used += len(block)
+            per_file_counts[r.source_path] = file_count + 1
+
         return "\n".join(parts)
+
+    @staticmethod
+    def _compose_prompt(system_prompt: str, user_prompt: str) -> str:
+        """Compose prompts consistently with light normalization."""
+        sys_clean = system_prompt.strip()
+        user_clean = user_prompt.strip()
+        return f"{sys_clean}\n\n{user_clean}"
 
     def _invoke(self, prompt: str) -> str:
         """Call the LLM and return the text response."""

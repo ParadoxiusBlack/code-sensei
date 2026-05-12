@@ -21,7 +21,26 @@ All notable changes to this project will be documented in this file.
 - `_load_pipeline()` catches vector-store connection errors and exits cleanly.
 
 ### Verification
-- Full regression suite passed: `131 passed, 2 warnings` (13 new tests).
+- Full regression suite passed: `143 passed, 2 warnings`.
+
+### Added (Phase 3 — Performance Tuning & Prompt Refinement)
+- New context-budget settings in `config/settings.py`:
+  - `MAX_CONTEXT_CHARS` (default `8000`)
+  - `MAX_CHARS_PER_CHUNK` (default `1400`)
+  - `MAX_CHUNKS_PER_FILE` (default `2`)
+- New `_BaseAssistant._compose_prompt()` helper for consistent prompt assembly.
+- New base assistant tests for context budgeting and prompt composition in `tests/test_base_assistant.py`.
+
+### Changed
+- `_BaseAssistant._format_context()` now:
+  - Returns a clear message when retrieval returns no context.
+  - Deduplicates near-identical chunks from the same file.
+  - Limits chunks per file to reduce single-file prompt dominance.
+  - Truncates overly long chunks to preserve prompt budget for diverse evidence.
+- `CodeQA`, `TestGenerator`, and `DocGenerator` now use shared prompt composition for cleaner, more predictable prompts.
+
+### Verification
+- Phase 3 final slice validated: `143 passed, 2 warnings`.
 
 ---
 
