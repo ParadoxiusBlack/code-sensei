@@ -14,6 +14,7 @@ refactor — Analyse code for refactoring opportunities.
 docs    — Generate documentation for a target.
 chat    — Start an interactive multi-turn chat session.
 status  — Show the current index statistics.
+gui     — Launch the desktop GUI front-end.
 """
 
 from __future__ import annotations
@@ -48,6 +49,19 @@ def _error_panel(message: str, hint: str | None = None) -> None:
     """Print a red error panel to the console."""
     body = message if hint is None else f"{message}\n\n[bold]{hint}[/bold]"
     console.print(Panel(body, title="[bold red]Error[/]", border_style="red", expand=False))
+
+
+def _windows_error_popup(title: str, message: str) -> None:
+    """Show a native Windows error popup (best effort)."""
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+
+        ctypes.windll.user32.MessageBoxW(None, message, title, 0x10)
+    except Exception:
+        # Popup is best-effort only.
+        return
 
 
 def _check_llm_status(assistant: object) -> None:
@@ -576,6 +590,54 @@ def watch(ctx: click.Context, project_dir: str) -> None:
                 time.sleep(1)
         except KeyboardInterrupt:
             console.print("\n[dim]Watcher stopped.[/]")
+
+
+# ---------------------------------------------------------------------------
+# gui (desktop app)
+# ---------------------------------------------------------------------------
+
+
+@main.command()
+@click.option(
+    "--project-dir", "-p", default=".", type=click.Path(exists=True, file_okay=False),
+)
+@click.option("--top-k", "-k", default=8, show_default=True, help="Chunks to retrieve.")
+@click.option("--no-llm", is_flag=True, help="Start GUI in retrieval-only mode.")
+@click.pass_context
+def gui(ctx: click.Context, project_dir: str, top_k: int, no_llm: bool) -> None:
+    """Launch the PyQt6 desktop GUI with answer + source viewer panes."""
+    root = Path(project_dir).resolve()
+
+    try:
+        from code_sensei.gui.app import run_gui
+    except Exception as exc:
+        _error_panel(
+            "GUI module could not be loaded.",
+            hint=(
+                "Install GUI dependency with: pip install PyQt6\n"
+                f"Details: {exc}"
+            ),
+        )
+        _windows_error_popup(
+            "CodeSensei GUI Error",
+            "GUI module could not be loaded.\n\n"
+            "Install GUI dependency with: pip install PyQt6\n\n"
+            f"Details: {exc}",
+        )
+        sys.exit(1)
+
+    try:
+        exit_code = run_gui(project_dir=str(root), top_k=top_k, use_llm=not no_llm)
+    except Exception as exc:
+        _error_panel("Failed to start GUI.", hint=str(exc))
+        _windows_error_popup(
+            "CodeSensei GUI Error",
+            f"Failed to start GUI.\n\nDetails: {exc}",
+        )
+        sys.exit(1)
+
+    if exit_code != 0:
+        sys.exit(exit_code)
 
 
 if __name__ == "__main__":

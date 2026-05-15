@@ -21,3 +21,9 @@ pytest-mock>=3.14
 black>=24.0
 ruff>=0.4
 mypy>=1.10
+
+# Optional GUI dependency (Phase 4)
+PyQt6>=6.7
+
+# Optional build dependency (standalone Windows executable)
+pyinstaller>=6.0

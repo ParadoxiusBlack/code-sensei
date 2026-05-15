@@ -123,6 +123,7 @@ Commands:
   chat      Start an interactive multi-turn chat session.
   status    Show index statistics for the project.
   watch     Watch a codebase directory and auto-reindex on file changes.
+  gui       Launch desktop GUI front-end.
 ```
 
 ### Examples
@@ -139,6 +140,76 @@ code-sensei docs . --type readme --output README_generated.md
 
 # Watch for changes and auto-reindex
 code-sensei watch /path/to/project
+
+# Launch desktop GUI (Phase 4)
+code-sensei gui -p /path/to/project
+```
+
+---
+
+## GUI (Phase 4)
+
+CodeSensei now includes a PyQt6 desktop interface:
+
+- Ask/answer pane for natural-language codebase questions.
+- Source list from retrieval hits.
+- Code viewer for selected source snippets.
+- Select Project button to switch to any project folder on your machine.
+
+
+Install GUI dependency:
+
+```bash
+pip install PyQt6
+```
+
+Launch:
+
+```bash
+code-sensei gui -p /path/to/project
+```
+
+Windows one-click launch:
+
+- Double-click [Run CodeSensei GUI.bat](Run%20CodeSensei%20GUI.bat) in the project root.
+- The launcher auto-uses `.venv\\Scripts\\python(.exe|pythonw.exe)` and opens GUI for this project.
+- If the GUI does not appear, run [Run CodeSensei GUI (Debug).bat](Run%20CodeSensei%20GUI%20(Debug).bat) to see startup errors.
+
+Optional flags:
+
+- `--top-k 12` tune retrieval breadth.
+- `--no-llm` start in retrieval-only mode.
+
+Standalone Windows `.exe` build:
+
+```powershell
+# From project root
+powershell -ExecutionPolicy Bypass -File scripts/build_gui_exe.ps1
+```
+
+Build output:
+
+- Preferred (one-file): `dist/CodeSenseiGUI.exe`
+- Fallback (one-dir, if toolchain chooses it): `dist/CodeSenseiGUI/CodeSenseiGUI.exe`
+
+Run the built app:
+
+```powershell
+./dist/CodeSenseiGUI.exe
+```
+
+Inside the GUI:
+
+- Click **Select Project...** to choose any folder in File Explorer.
+- The selected project is automatically indexed in the background.
+- The active project and indexed chunk count are shown at the top.
+- Use the **Reindex** button any time to refresh embeddings.
+- Use the **Project Files** tab to browse folder structure, open files, edit text files, and save changes.
+
+If you prefer CLI indexing first, you can still run:
+
+```bash
+code-sensei index /path/to/project
 ```
 
 ---
@@ -163,6 +234,8 @@ code-sensei/
 │       │   ├── test_generator.py
 │       │   ├── refactor.py
 │       │   └── doc_generator.py
+│       ├── gui/
+│       │   └── app.py           # PyQt6 desktop interface
 │       ├── memory/
 │       │   └── conversation.py  # Multi-turn memory
 │       └── cache/
@@ -200,7 +273,7 @@ black src/ tests/
 - [x] Phase 1 — Scaffold: project structure, indexer pipeline, vector store
 - [x] Phase 2 — Retrieval: improve ranking, add hybrid BM25 + vector search
 - [x] Phase 3 — Features: refine prompts, advanced error handling, performance tuning
-- [ ] Phase 4 — GUI: PyQt6 or Electron front-end, code viewer
+- [x] Phase 4 — GUI: PyQt6 front-end with integrated code viewer
 
 ---
 

@@ -54,6 +54,14 @@ dev = [
     "mypy>=1.10",
 ]
 
+gui = [
+    "PyQt6>=6.7",
+]
+
+build = [
+    "pyinstaller>=6.0",
+]
+
 [project.scripts]
 code-sensei = "code_sensei.cli:main"
 

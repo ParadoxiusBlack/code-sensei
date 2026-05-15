@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added (Phase 4 — GUI)
+- New PyQt6 desktop front-end in `src/code_sensei/gui/app.py`.
+- New `code-sensei gui` CLI command to launch the desktop application.
+- Desktop UI includes:
+  - Ask/answer pane for natural-language queries.
+  - Source list for retrieved files.
+  - Code viewer for selected retrieval snippets.
+- Optional GUI dependency declarations:
+  - `pyproject.toml` optional extra: `gui = ["PyQt6>=6.7"]`
+  - `requirements.txt` updated with `PyQt6>=6.7`
+- New GUI utility tests in `tests/test_gui.py`.
+
+### Verification
+- Full regression suite passed: `147 passed, 2 warnings`.
+
 ### Added (Phase 3 — Error Handling)
 - New `src/code_sensei/errors.py` with typed exception classes:
   - `OllamaConnectionError` — Ollama server not reachable; carries `ollama serve` hint.
