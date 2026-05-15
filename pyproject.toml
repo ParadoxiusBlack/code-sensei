@@ -64,6 +64,7 @@ build = [
 
 [project.scripts]
 code-sensei = "code_sensei.cli:main"
+code-sensei-gui = "code_sensei.gui.app:main_gui"
 
 [tool.setuptools.packages.find]
 where = ["src"]

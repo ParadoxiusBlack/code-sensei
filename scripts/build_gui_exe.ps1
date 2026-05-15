@@ -8,17 +8,6 @@ $Root = (Resolve-Path $ProjectDir).Path
 Set-Location $Root
 
 $ExeName = "CodeSenseiGUI"
-$PrimaryExePath = Join-Path $Root "dist\$ExeName.exe"
-if (Test-Path $PrimaryExePath) {
-    try {
-        Remove-Item -Path $PrimaryExePath -Force
-    } catch {
-        $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
-        $ExeName = "CodeSenseiGUI_$timestamp"
-        Write-Host "[CodeSensei Build] Existing EXE is in use; building with alternate name: $ExeName" -ForegroundColor Yellow
-    }
-}
-
 $Python = Join-Path $Root ".venv\Scripts\python.exe"
 if (-not (Test-Path $Python)) {
     Write-Host "[CodeSensei Build] Missing venv Python: $Python" -ForegroundColor Red
@@ -31,16 +20,24 @@ Write-Host "[CodeSensei Build] Installing/updating build dependencies..." -Foreg
 & $Python -m pip install -e ".[dev,gui,build]"
 
 Write-Host "[CodeSensei Build] Building standalone GUI executable..." -ForegroundColor Cyan
+
+# Clean old builds
+if (Test-Path "dist") {
+    Remove-Item -Path "dist" -Recurse -Force -ErrorAction SilentlyContinue
+}
+if (Test-Path "build") {
+    Remove-Item -Path "build" -Recurse -Force -ErrorAction SilentlyContinue
+}
+
 & $Python -m PyInstaller `
     --noconfirm `
-    --clean `
-    --onefile `
+    --onedir `
     --windowed `
     --name "$ExeName" `
     --paths "src" `
-    --collect-submodules "code_sensei" `
-    --collect-data "code_sensei" `
     --hidden-import "PyQt6.sip" `
+    --hidden-import "chromadb" `
+    --hidden-import "langchain" `
     "src\code_sensei\gui_main.py"
 
 if ($LASTEXITCODE -ne 0) {
@@ -48,13 +45,13 @@ if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
-$OneFileOutput = Join-Path $Root "dist\$ExeName.exe"
-$FolderedOutput = Join-Path $Root "dist\$ExeName\$ExeName.exe"
-
-if (Test-Path $OneFileOutput) {
-    Write-Host "[CodeSensei Build] Success (one-file): $OneFileOutput" -ForegroundColor Green
-} elseif (Test-Path $FolderedOutput) {
-    Write-Host "[CodeSensei Build] Success (one-dir): $FolderedOutput" -ForegroundColor Green
+$BuildOutput = Join-Path $Root "dist\$ExeName"
+if (Test-Path $BuildOutput) {
+    Write-Host "[CodeSensei Build] Success! Built to: $BuildOutput" -ForegroundColor Green
+    $ExeFile = Join-Path $BuildOutput "$ExeName.exe"
+    if (Test-Path $ExeFile) {
+        Write-Host "[CodeSensei Build] Executable ready at: $ExeFile" -ForegroundColor Green
+    }
 } else {
-    Write-Host "[CodeSensei Build] Build completed but EXE not found in dist/." -ForegroundColor Yellow
+    Write-Host "[CodeSensei Build] Build completed but output not found." -ForegroundColor Yellow
 }

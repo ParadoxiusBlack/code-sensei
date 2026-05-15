@@ -557,3 +557,15 @@ def run_gui(project_dir: str = ".", top_k: int = 8, use_llm: bool = True) -> int
     window = MainWindow(root=root, qa=qa)
     window.show()
     return app.exec()
+
+
+def main_gui() -> int:
+    """Entry point for the GUI application when installed as a package.
+    
+    Launches the GUI from the current working directory or opens a folder picker.
+    """
+    import os
+    
+    # Try to use current directory if it's a code project, otherwise start with home
+    project_dir = os.getcwd()
+    return run_gui(project_dir=project_dir, top_k=8, use_llm=True)
