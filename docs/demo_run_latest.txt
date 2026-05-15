@@ -1,0 +1,365 @@
+CodeSensei Live Demo Output
+Generated: 2026-05-15 20:11:00 UTC
+Project: C:\Users\cjp37\OneDrive\Documents\Project Devolopment\code-sensei\demo_project
+
+## STEP 1: Index demo project
+Command: C:\Users\cjp37\OneDrive\Documents\Project Devolopment\code-sensei\.venv\Scripts\python.exe -m code_sensei.cli index C:\Users\cjp37\OneDrive\Documents\Project Devolopment\code-sensei\demo_project
+Exit code: 0
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Indexing C:\Users\cjp37\OneDrive\Documents\Project                          │
+│ Devolopment\code-sensei\demo_project                                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+⠏ Indexing validation.py…
+
+✓ Indexed 3 files, 13 chunks into collection 
+'demo_project__ollama__nomic-embed-text'.
+
+## STEP 2: Ask a code question
+Command: C:\Users\cjp37\OneDrive\Documents\Project Devolopment\code-sensei\.venv\Scripts\python.exe -m code_sensei.cli ask What does TokenManager do in this project? -p C:\Users\cjp37\OneDrive\Documents\Project Devolopment\code-sensei\demo_project --no-stream
+Exit code: 0
+
+┌────────────────────────────────── Answer ───────────────────────────────────┐
+│ The provided codebase does not contain a TokenManager class. Therefore, it  │
+│ is impossible to determine what the TokenManager would do based on the      │
+│ given context.                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+Sources:
+  C:\Users\cjp37\OneDrive\Documents\Project 
+Devolopment\code-sensei\demo_project\src\auth.py
+  C:\Users\cjp37\OneDrive\Documents\Project 
+Devolopment\code-sensei\demo_project\src\database.py
+  C:\Users\cjp37\OneDrive\Documents\Project 
+Devolopment\code-sensei\demo_project\src\validation.py
+
+## STEP 3: Generate tests
+Command: C:\Users\cjp37\OneDrive\Documents\Project Devolopment\code-sensei\.venv\Scripts\python.exe -m code_sensei.cli tests TokenManager -p C:\Users\cjp37\OneDrive\Documents\Project Devolopment\code-sensei\demo_project -f pytest
+Exit code: 0
+
+┌────────────────────────────── Generated Tests ──────────────────────────────┐
+│                                                                             │
+│   Here's a basic structure for your tests using pytest and the              │
+│  `unittest.mock` library. You may need to adjust the mocks based on the     │
+│  actual implementation of `DatabaseConnection`, `DataBase`, and other       │
+│  external dependencies.                                                     │
+│                                                                             │
+│  ```python                                                                  │
+│  # file: test_session_manager.py                                            │
+│  from unittest.mock import Mock, patch                                      │
+│  import pytest                                                              │
+│  from demo_project.src.database import DatabaseConnection                   │
+│  from demo_project.src.validation import sanitize_input                     │
+│  from demo_project.src.session_manager import SessionManager                │
+│                                                                             │
+│  def test_create_session():                                                 │
+│      db = Mock(spec=DatabaseConnection)                                     │
+│      sm = SessionManager(db)                                                │
+│                                                                             │
+│      # Test with valid input                                                │
+│      user_id, session_data = "user1", {"key": "value"}                      │
+│      assert sm.create_session(user_id, session_data) ==                     │
+│  f"session_{user_id}"                                                       │
+│      db.assert_called_once_with("INSERT INTO sessions (user_id,             │
+│  session_data) VALUES (?, ?)", (user_id,                                    │
+│  sanitize_input(str(session_data))))                                        │
+│                                                                             │
+│      # Test with empty input                                                │
+│      assert sm.create_session("", {}) is None                               │
+│      db.assert_not_called()                                                 │
+│                                                                             │
+│  def test_get_session():                                                    │
+│      db = Mock(spec=DatabaseConnection)                                     │
+│      db.return_value.execute_query.return_value = {"session_id":            │
+│  "existing_session"}                                                        │
+│      sm = SessionManager(db)                                                │
+│                                                                             │
+│      # Test with valid session ID                                           │
+│      assert sm.get_session("existing_session") == {"key": "value"}          │
+│      db.assert_called_once_with("SELECT * FROM sessions WHERE session_id =  │
+│  ?", ("existing_session",))                                                 │
+│                                                                             │
+│      # Test with non-existent session ID                                    │
+│      db.return_value.execute_query.return_value = None                      │
+│      assert sm.get_session("non_existent_session") is None                  │
+│      db.assert_called_once_with("SELECT * FROM sessions WHERE session_id =  │
+│  ?", ("non_existent_session",))                                             │
+│                                                                             │
+│  # file: test_database.py                                                   │
+│  from unittest.mock import Mock, patch                                      │
+│  import pytest                                                              │
+│                                                                             │
+│  def test_create_user():                                                    │
+│      db = Mock(spec=DatabaseConnection)                                     │
+│      db.execute_query.return_value = (1,)                                   │
+│      db.assert_not_called()                                                 │
+│                                                                             │
+│      # Test with valid input                                                │
+│      user = "username", "email@example.com", "password_hash"                │
+│      db.execute_query.return_value = (1,)                                   │
+│      assert db.execute_query.call_count == 1                                │
+│      db.assert_called_once_with("INSERT INTO users (username, email,        │
+│  password_hash) VALUES (?, ?, ?)", user)                                    │
+│                                                                             │
+│      # Test with duplicate username                                         │
+│      db.execute_query.side_effect = DatabaseError("Duplicate entry")        │
+│      assert db.execute_query.call_count == 2                                │
+│      with pytest.raises(DatabaseError):                                     │
+│          db.execute_query("INSERT INTO users (username, email,              │
+│  password_hash) VALUES (?, ?, ?)", user)                                    │
+│                                                                             │
+│  def test_get_user_by_username():                                           │
+│      db = Mock(spec=DatabaseConnection)                                     │
+│      db.return_value.execute_query.return_value = [{"username":             │
+│  "existing_user", "email": "example@example.com"}]                          │
+│      db.assert_not_called()                                                 │
+│                                                                             │
+│      # Test with valid username                                             │
+│      assert db.execute_query.call_count == 1                                │
+│      db.assert_called_once_with("SELECT * FROM users WHERE username = ?",   │
+│  ("existing_user",))                                                        │
+│      user = db.execute_query.return_value[0]                                │
+│      assert user["username"] == "existing_user"                             │
+│      assert user["email"] == "example@example.com"                          │
+│                                                                             │
+│      # Test with non-existent username                                      │
+│      db.return_value.execute_query.return_value = []                        │
+│      assert db.execute_query.call_count == 1                                │
+│      with pytest.raises(UserNotFoundError):                                 │
+│          db.execute_query("SELECT * FROM users WHERE username = ?",         │
+│  ("non_existent_user",))                                                    │
+│                                                                             │
+│  # file: test_validation.py                                                 │
+│  from unittest.mock import Mock                                             │
+│  import pytest                                                              │
+│                                                                             │
+│  def test_sanitize_input():                                                 │
+│      sanitizer = Mock(spec=sanitize_input)                                  │
+│      assert sanitizer("clean_input") == "clean_input"                       │
+│                                                                             │
+│      # Test with dangerous characters                                       │
+│      dangerous_chars = ["'", '"', ";", "--"]                                │
+│      for char in dangerous_chars:                                           │
+│          sanitizer.side_effect = [char + "_replaced"]                       │
+│          assert sanitizer("dangerous" + char) == "dangerous" + "_replaced"  │
+│                                                                             │
+│  # file: test_auth.py                                                       │
+│  from unittest.mock import Mock, patch                                      │
+│  import pytest                                                              │
+│                                                                             │
+│  def test_verify_password():                                                │
+│      user = User("username", "email@example.com", "hashed_password")        │
+│      assert user.verify_password("hashed_password") is True                 │
+│      assert user.verify_password("wrong_password") is False                 │
+│                                                                             │
+│  # file: test_token_manager.py                                              │
+│  from unittest.mock import Mock                                             │
+│  import pytest                                                              │
+│                                                                             │
+│  def test_issue_token():                                                    │
+│      tm = TokenManager()                                                    │
+│      assert tm.issue_token("user1", 48) == "token_user1"                    │
+│                                                                             │
+│                                                                             │
+│ This structure covers the basic unit tests for each public function/method  │
+│ in your code. You can expand these tests to include more edge cases and     │
+│ integration tests as needed.                                                │
+│                                                                             │
+│                                                                             │
+│                                                                             │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+## STEP 4: Refactor analysis
+Command: C:\Users\cjp37\OneDrive\Documents\Project Devolopment\code-sensei\.venv\Scripts\python.exe -m code_sensei.cli refactor authentication and token handling -p C:\Users\cjp37\OneDrive\Documents\Project Devolopment\code-sensei\demo_project
+Exit code: 0
+
+┌────────────────────────────── Refactor Report ──────────────────────────────┐
+│ Here's the refactoring analysis for the provided code:                      │
+│                                                                             │
+│ Critical                                                                    │
+│                                                                             │
+│  1 Insecure password hashing (auth.py)                                      │
+│     • Problem: The current implementation uses an insecure method to hash   │
+│       passwords, which can be easily reversed. This poses a significant     │
+│       security risk.                                                        │
+│     • Suggested fix: Use a proper hashing library like bcrypt or argon2 for │
+│       secure password storage. Replace the verify_password function with a  │
+│       more secure implementation.                                           │
+│                                                                             │
+│ Major                                                                       │
+│                                                                             │
+│  1 Lack of proper error handling (auth.py, validation.py)                   │
+│     • Problem: There is no proper error handling in place, which can lead   │
+│       to unhandled exceptions and unexpected behavior.                      │
+│     • Suggested fix: Add try-except blocks for potential errors and handle  │
+│       them appropriately. For example, use custom exceptions for specific   │
+│       cases.                                                                │
+│  2 Incomplete implementation of JWT encoding (auth.py)                      │
+│     • Problem: The issue_token function is only partially implemented,      │
+│       which may lead to incorrect or insecure token generation.             │
+│     • Suggested fix: Implement proper JWT encoding using a library like     │
+│       PyJWT or JWT-python.                                                  │
+│  3 Lack of SQL injection prevention (validation.py, database.py)            │
+│     • Problem: The current implementation does not properly sanitize user   │
+│       input, which can lead to SQL injection attacks.                       │
+│     • Suggested fix: Use parameterized queries or a library like sqlmapper  │
+│       for safe SQL operations.                                              │
+│                                                                             │
+│ Minor                                                                       │
+│                                                                             │
+│  1 Magic numbers (auth.py, database.py)                                     │
+│     • Problem: There are several magic numbers in the code, which can make  │
+│       it harder to understand and maintain.                                 │
+│     • Suggested fix: Use constants or comments to explain the purpose of    │
+│       these numbers.                                                        │
+│  2 Long method (database.py)                                                │
+│     • Problem: The create_user function is quite long, making it harder to  │
+│       read and understand.                                                  │
+│     • Suggested fix: Break up the function into smaller methods with more   │
+│       focused responsibilities.                                             │
+│                                                                             │
+│ Style                                                                       │
+│                                                                             │
+│  1 Naming conventions (various files)                                       │
+│     • Problem: Some variable and function names are not following           │
+│       consistent naming conventions, which can make the code harder to read │
+│       and understand.                                                       │
+│     • Suggested fix: Adopt a consistent naming convention throughout the    │
+│       codebase, such as snake_case or camelCase.                            │
+│  2 Documentation (various files)                                            │
+│     • Problem: There is little documentation in the code, making it harder  │
+│       for others to understand its purpose and functionality.               │
+│     • Suggested fix: Add comments and docstrings where appropriate to       │
+│       explain the purpose of functions, classes, and variables.             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+## STEP 5: Generate docs
+Command: C:\Users\cjp37\OneDrive\Documents\Project Devolopment\code-sensei\.venv\Scripts\python.exe -m code_sensei.cli docs TokenManager -p C:\Users\cjp37\OneDrive\Documents\Project Devolopment\code-sensei\demo_project --type docstrings --style google
+Exit code: 0
+
+┌─────────────────────────────── Documentation ───────────────────────────────┐
+│                                                                             │
+│  # File: C:\Users\cjp37\OneDrive\Documents\Project                          │
+│  Devolopment\code-sensei\demo_project\src\database.py (lang: python,        │
+│  score: 0.79)                                                               │
+│                                                                             │
+│                                                                             │
+│ class SessionManager: """Manages user sessions."""                          │
+│                                                                             │
+│                                                                             │
+│  def __init__(self, db: DatabaseConnection):                                │
+│      """Initialize a new SessionManager instance with the provided          │
+│  database connection."""                                                    │
+│                                                                             │
+│      self.db = db                                                           │
+│      self.sessions = {}                                                     │
+│                                                                             │
+│                                                                             │
+│               File: C:\Users\cjp37\OneDrive\Documents\Project               │
+│ Devolopment\code-sensei\demo_project\src\database.py (lang: python, score:  │
+│                                    0.75)                                    │
+│                                                                             │
+│ class DatabaseConnection: """Abstract base class for database               │
+│ connections."""                                                             │
+│                                                                             │
+│                                                                             │
+│  def execute_query(self, query: str, params=None):                          │
+│      """Execute a SQL query with optional parameters."""                    │
+│                                                                             │
+│                                                                             │
+│               File: C:\Users\cjp37\OneDrive\Documents\Project               │
+│ Devolopment\code-sensei\demo_project\src\database.py (lang: python, score:  │
+│                                    0.75)                                    │
+│                                                                             │
+│ class UserManager: """Manages user accounts in the database."""             │
+│                                                                             │
+│                                                                             │
+│  def create_user(self, username: str, email: str, password_hash: str):      │
+│      """Create a new user in the database."""                               │
+│                                                                             │
+│      query = "INSERT INTO users (username, email, password_hash) VALUES     │
+│  (?, ?, ?)"                                                                 │
+│      return self.execute_query(query, (username, email, password_hash))     │
+│                                                                             │
+│  def get_user_by_username(self, username: str):                             │
+│      """Retrieve a user by username."""                                     │
+│                                                                             │
+│      query = "SELECT * FROM users WHERE username = ?"                       │
+│      return self.execute_query(query, (username,))                          │
+│                                                                             │
+│                                                                             │
+│               File: C:\Users\cjp37\OneDrive\Documents\Project               │
+│    Devolopment\code-sensei\demo_project\src\validation.py (lang: python,    │
+│                                score: 0.75)                                 │
+│                                                                             │
+│ def validate_password(password: str) -> bool: """Validate the strength of a │
+│ password."""                                                                │
+│                                                                             │
+│                                                                             │
+│  if len(password) < 8:                                                      │
+│      raise ValidationError("Password must be at least 8 characters long.")  │
+│  if not any(c.isupper() for c in password):                                 │
+│      raise ValidationError("Password must contain an uppercase letter.")    │
+│  if not any(c.islower() for c in password):                                 │
+│      raise ValidationError("Password must contain a lowercase letter.")     │
+│  if not any(c.isdigit() for c in password):                                 │
+│      raise ValidationError("Password must contain a digit.")                │
+│  return True                                                                │
+│                                                                             │
+│                                                                             │
+│               File: C:\Users\cjp37\OneDrive\Documents\Project               │
+│    Devolopment\code-sensei\demo_project\src\validation.py (lang: python,    │
+│                                score: 0.75)                                 │
+│                                                                             │
+│ def sanitize_input(user_input: str) -> str: """Sanitize user input to       │
+│ prevent SQL injection."""                                                   │
+│                                                                             │
+│                                                                             │
+│  # TODO: Implement proper SQL injection prevention                          │
+│  dangerous_chars = ["'", '"', ";", "--"]                                    │
+│  sanitized = user_input                                                     │
+│  for char in dangerous_chars:                                               │
+│      sanitized = sanitized.replace(char, '')                                │
+│                                                                             │
+│                                                                             │
+│               File: C:\Users\cjp37\OneDrive\Documents\Project               │
+│   Devolopment\code-sensei\demo_project\src\auth.py (lang: python, score:    │
+│                                    0.74)                                    │
+│                                                                             │
+│                                                                             │
+│  class AuthenticationError(Exception):                                      │
+│      """Raised when authentication fails."""                                │
+│                                                                             │
+│  class User:                                                                │
+│      """Represents a user account."""                                       │
+│                                                                             │
+│      def __init__(self, username: str, email: str, password_hash: str):     │
+│          """Initialize a new User instance with the provided                │
+│  credentials."""                                                            │
+│                                                                             │
+│          self.username = username                                           │
+│          self.email = email                                                 │
+│          self.password_hash = password_hash                                 │
+│                                                                             │
+│      def verify_password(self, password: str) -> bool:                      │
+│          """Verify if the given password matches the stored hash."""        │
+│                                                                             │
+│          # TODO: Use a secure hashing algorithm for password comparison     │
+│          return self.password_hash == password                              │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+## STEP 6: Index status
+Command: C:\Users\cjp37\OneDrive\Documents\Project Devolopment\code-sensei\.venv\Scripts\python.exe -m code_sensei.cli status -p C:\Users\cjp37\OneDrive\Documents\Project Devolopment\code-sensei\demo_project
+Exit code: 0
+
+CodeSensei Index Status                            
+┌───────────────────┬─────────────────────────────────────────────────────────┐
+│ Property          │ Value                                                   │
+├───────────────────┼─────────────────────────────────────────────────────────┤
+│ Project directory │ C:\Users\cjp37\OneDrive\Documents\Project               │
+│                   │ Devolopment\code-sensei\demo_project                    │
+│ Collection        │ demo_project__ollama__nomic-embed-text                  │
+│ Indexed chunks    │ 13                                                      │
+└───────────────────┴─────────────────────────────────────────────────────────┘
