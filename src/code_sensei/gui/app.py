@@ -63,6 +63,77 @@ def _is_editable_text_file(path: Path, max_size_bytes: int = 2_000_000) -> bool:
     return path.suffix.lower() in editable_exts
 
 
+def _read_full_file(path: str, base_dir: Path | None = None) -> str:
+    """Read a complete source file (no truncation)."""
+    p = Path(path)
+    if base_dir is not None and not p.is_absolute():
+        p = (base_dir / p).resolve()
+    if not p.exists() or not p.is_file():
+        return "[Source file is missing or unavailable.]"
+    try:
+        return p.read_text(encoding="utf-8", errors="replace")
+    except Exception as exc:
+        return f"[Failed to read source: {exc}]"
+
+
+def _annotate_file_with_chunks(
+    file_content: str,
+    chunk_ranges: list[tuple[int, int]],
+    current_chunk_range: tuple[int, int] | None = None,
+) -> str:
+    """
+    Annotate file content with chunk boundary markers.
+    
+    Shows visual indicators for chunk boundaries and highlights the current chunk.
+    """
+    if not chunk_ranges:
+        return file_content
+    
+    # Sort ranges for processing
+    sorted_ranges = sorted(set(chunk_ranges))
+    
+    # Build annotated version with line numbers and chunk indicators
+    lines = file_content.split("\n")
+    char_pos = 0
+    annotated_lines = []
+    chunk_index = 0
+    current_chunk_id = None
+    
+    for line_num, line in enumerate(lines, 1):
+        line_end = char_pos + len(line) + 1  # +1 for newline
+        
+        # Check which chunks contain this line
+        chunks_at_line = []
+        for i, (start, end) in enumerate(sorted_ranges):
+            if start <= char_pos < end or start < line_end <= end or (start < char_pos and line_end <= end):
+                chunks_at_line.append(i)
+        
+        # Add line number and chunk indicators
+        indicator = ""
+        if chunks_at_line:
+            is_current = current_chunk_range and (
+                current_chunk_range[0] <= char_pos < current_chunk_range[1]
+                or current_chunk_range[0] < line_end <= current_chunk_range[1]
+            )
+            marker = "▶" if is_current else "│"
+            chunk_nums = f"[{','.join(str(i+1) for i in chunks_at_line)}]"
+            indicator = f" {marker} CHUNK{chunk_nums}"
+        
+        annotated_lines.append(f"{line_num:4d} | {line}{indicator}")
+        char_pos = line_end
+    
+    # Add header with legend
+    header = (
+        "┌─ FULL FILE VIEW WITH CHUNK INDICATORS ─────────────────────┐\n"
+        "│ │   = Line is part of a chunk retrieved by LLM             │\n"
+        "│ ▶   = Line is in the CURRENT chunk being viewed            │\n"
+        "│ [1] = Chunk index (multiple chunks may span same lines)    │\n"
+        "└────────────────────────────────────────────────────────────┘\n\n"
+    )
+    
+    return header + "\n".join(annotated_lines)
+
+
 def _read_source_excerpt(path: str, max_chars: int = 6000, base_dir: Path | None = None) -> str:
     """Read and truncate a source file safely for viewer display."""
     p = Path(path)
@@ -425,24 +496,60 @@ def run_gui(project_dir: str = ".", top_k: int = 8, use_llm: bool = True) -> int
                 return
 
             src_path = self.sources_list.item(row).text()
-            selected: RetrievalResult | None = None
-            for r in self._latest_results:
-                if r.source_path == src_path:
-                    selected = r
-                    break
-
-            if selected:
-                snippet = selected.content
-                header = (
-                    f"# File: {selected.source_path}\n"
-                    f"# Language: {selected.language}\n"
-                    f"# Score: {selected.score:.2f}\n\n"
-                )
-                self.code_view.setPlainText(header + snippet)
+            
+            # Find ALL chunks from this file in the retrieval results
+            chunks_from_file = [r for r in self._latest_results if r.source_path == src_path]
+            
+            if not chunks_from_file:
+                # Fallback: show file if no chunks available
+                content = _read_full_file(src_path, base_dir=self.root)
+                self.code_view.setPlainText(content)
                 return
-
-            # Fallback to reading file if no retrieval snippet is available.
-            self.code_view.setPlainText(_read_source_excerpt(src_path, base_dir=self.root))
+            
+            # Extract char ranges from chunks
+            chunk_ranges = []
+            first_chunk = chunks_from_file[0]
+            for chunk in chunks_from_file:
+                if "start_char" in chunk.metadata and "end_char" in chunk.metadata:
+                    chunk_ranges.append((
+                        chunk.metadata["start_char"],
+                        chunk.metadata["end_char"]
+                    ))
+            
+            # Read full file and annotate with chunk boundaries
+            file_content = _read_full_file(src_path, base_dir=self.root)
+            
+            # Use first chunk's range as current highlight (or None if not available)
+            current_range = None
+            if "start_char" in first_chunk.metadata and "end_char" in first_chunk.metadata:
+                current_range = (
+                    first_chunk.metadata["start_char"],
+                    first_chunk.metadata["end_char"]
+                )
+            
+            if chunk_ranges:
+                annotated_content = _annotate_file_with_chunks(
+                    file_content,
+                    chunk_ranges,
+                    current_range
+                )
+            else:
+                annotated_content = file_content
+            
+            # Build comprehensive header
+            num_chunks = len(chunks_from_file)
+            avg_score = sum(c.score for c in chunks_from_file) / len(chunks_from_file)
+            
+            header = (
+                f"╔════════════════════════════════════════════════════════════╗\n"
+                f"║  File: {src_path}\n"
+                f"║  Language: {first_chunk.language}\n"
+                f"║  Retrieved Chunks: {num_chunks} | Avg Score: {avg_score:.2f}\n"
+                f"║  ✓ Showing FULL file with chunk indicators (not truncated)\n"
+                f"╚════════════════════════════════════════════════════════════╝\n\n"
+            )
+            
+            self.code_view.setPlainText(header + annotated_content)
 
         def _on_select_project(self) -> None:
             selected = QFileDialog.getExistingDirectory(

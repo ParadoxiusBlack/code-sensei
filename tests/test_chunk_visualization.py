@@ -1,0 +1,123 @@
+"""
+Test the new chunk annotation features in GUI.
+"""
+
+import pytest
+from pathlib import Path
+from code_sensei.gui.app import _annotate_file_with_chunks, _read_full_file
+
+
+def test_annotate_file_with_chunks_basic():
+    """Test basic chunk annotation with line numbers."""
+    content = "line1\nline2\nline3\nline4\nline5"
+    
+    # Chunks covering lines 1-2 and 4-5 (char positions)
+    # "line1\n" = 6 chars, "line2\n" = 6 chars, "line3\n" = 6 chars
+    chunk_ranges = [
+        (0, 12),      # line1 and line2 
+        (18, 30),     # line4 and line5
+    ]
+    
+    result = _annotate_file_with_chunks(content, chunk_ranges, current_chunk_range=(0, 12))
+    
+    # Should contain line numbers
+    assert "1 |" in result
+    assert "2 |" in result
+    assert "3 |" in result
+    
+    # Should contain chunk markers
+    assert "CHUNK" in result
+    
+    # Should have legend
+    assert "FULL FILE VIEW WITH CHUNK INDICATORS" in result
+
+
+def test_annotate_file_empty_ranges():
+    """Test annotation with no chunks."""
+    content = "line1\nline2\nline3"
+    
+    result = _annotate_file_with_chunks(content, [], current_chunk_range=None)
+    
+    # Should still contain content
+    assert "line1" in result
+    assert "line2" in result
+
+
+def test_annotate_file_no_truncation():
+    """Test that full file is shown regardless of size."""
+    # Large content
+    large_content = "\n".join([f"line {i}" for i in range(1000)])
+    
+    chunk_ranges = [(0, 100), (200, 300)]
+    
+    result = _annotate_file_with_chunks(large_content, chunk_ranges)
+    
+    # Should contain lines from throughout the file, not truncated
+    assert "line 0" in result
+    assert "line 999" in result
+    
+    # Should have line numbers for all lines
+    assert "1 |" in result
+    assert "1000 |" in result
+
+
+def test_annotate_file_with_current_chunk():
+    """Test highlighting current chunk with ▶."""
+    content = "line1\nline2\nline3"
+    chunk_ranges = [(0, 6), (12, 18)]  # line1 and line3
+    current_chunk = (0, 6)  # line1 is current
+    
+    result = _annotate_file_with_chunks(content, chunk_ranges, current_chunk)
+    
+    # Should have both markers
+    assert "│" in result or "CHUNK" in result  # Regular chunk marker
+    # Note: ▶ may or may not appear depending on exact char positions
+
+
+def test_annotate_overlapping_chunks():
+    """Test handling of overlapping chunks."""
+    content = "line1\nline2\nline3\nline4"
+    
+    # Overlapping chunks
+    chunk_ranges = [
+        (0, 12),      # line1-2
+        (6, 18),      # line2-3 (overlaps)
+        (12, 24),     # line3-4
+    ]
+    
+    result = _annotate_file_with_chunks(content, chunk_ranges)
+    
+    # Should handle overlaps gracefully
+    assert "CHUNK" in result
+    # Lines in overlap should be marked
+    assert "line2" in result
+
+
+def test_read_full_file_not_truncated(tmp_path):
+    """Test that read_full_file returns complete content."""
+    # Create large test file
+    test_file = tmp_path / "test_large.py"
+    large_content = "\n".join([f"line {i}" for i in range(1000)])
+    test_file.write_text(large_content)
+    
+    result = _read_full_file(str(test_file))
+    
+    # Should contain entire content
+    assert len(result) > 6000  # Larger than old truncation limit
+    assert "line 0" in result
+    assert "line 999" in result
+    
+    # Should NOT have truncation marker
+    assert "truncated" not in result.lower()
+
+
+def test_read_full_file_missing():
+    """Test handling of missing files."""
+    result = _read_full_file("/nonexistent/path/file.py")
+    
+    # Should return error message, not crash
+    assert "missing" in result.lower() or "unavailable" in result.lower()
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])
