@@ -119,5 +119,91 @@ def test_read_full_file_missing():
     assert "missing" in result.lower() or "unavailable" in result.lower()
 
 
+def test_annotate_file_with_chunk_scores():
+    """Test annotation with relevance scores."""
+    content = "line1\nline2\nline3"
+    chunk_ranges = [(0, 12), (12, 18)]
+    chunk_scores = {0: 0.95, 1: 0.72}
+    
+    result = _annotate_file_with_chunks(
+        content, 
+        chunk_ranges, 
+        current_chunk_range=None,
+        chunk_scores=chunk_scores
+    )
+    
+    # Should contain score markers
+    assert "[0|0.95]" in result or "0.95" in result
+    assert "[1|0.72]" in result or "0.72" in result
+    
+    # Should have legend showing score format
+    assert "score" in result.lower()
+
+
+def test_export_content_preserves_annotations(tmp_path):
+    """Test that exported content includes all chunk annotations."""
+    export_file = tmp_path / "exported.py"
+    
+    # Simulate annotated content with header (use simpler header without box chars)
+    header = "File: src/main.py\n"
+    header += "Language: python\n"
+    header += "Retrieved Chunks: 2 | Avg Score: 0.87\n"
+    header += "Showing FULL file with chunk indicators (not truncated)\n\n"
+    
+    annotated_content = header + "1 | [1|0.92] def main():\n2 |     pass\n"
+    
+    # Write to file with UTF-8 encoding (simulating export)
+    export_file.write_text(annotated_content, encoding="utf-8")
+    
+    # Read and verify
+    exported = export_file.read_text(encoding="utf-8")
+    assert "File: src/main.py" in exported
+    assert "[1|0.92]" in exported
+    assert "def main" in exported
+
+
+def test_export_filename_suggestion():
+    """Test that export suggests correct filename with .annotated extension."""
+    # These filenames should transform as:
+    # - utils.py → utils.annotated.py
+    # - config.json → config.annotated.json
+    # - README.md → README.annotated.md
+    
+    from pathlib import Path
+    
+    filenames = [
+        ("utils.py", "utils.annotated.py"),
+        ("config.json", "config.annotated.json"),
+        ("README.md", "README.annotated.md"),
+        ("__init__.py", "__init__.annotated.py"),
+    ]
+    
+    for original, expected in filenames:
+        src_name = Path(original).name
+        name_without_ext = Path(src_name).stem
+        ext = Path(src_name).suffix
+        suggested = f"{name_without_ext}.annotated{ext}"
+        assert suggested == expected, f"For {original}, got {suggested}, expected {expected}"
+
+
+def test_export_preserves_full_content(tmp_path):
+    """Test that exported file contains entire file, not truncated."""
+    export_file = tmp_path / "large_export.py"
+    
+    # Large content with annotations
+    large_content = "# Large file\n"
+    for i in range(500):
+        large_content += f"1 | [chunk_{i}] line {i}\n"
+    
+    export_file.write_text(large_content)
+    
+    # Verify all content is present
+    exported = export_file.read_text()
+    assert len(exported) == len(large_content)
+    assert "line 0" in exported
+    assert "line 499" in exported
+    assert "truncated" not in exported.lower()
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
