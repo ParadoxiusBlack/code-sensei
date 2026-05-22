@@ -16,6 +16,7 @@ the LLM as context, following a RAG pattern.
 from __future__ import annotations
 
 import logging
+from time import perf_counter
 from dataclasses import dataclass, field
 from typing import Iterator
 
@@ -67,6 +68,19 @@ class QAResponse:
     retrieval_results: list[RetrievalResult] = field(default_factory=list)
 
 
+@dataclass
+class QAQueryMetrics:
+    """Per-query metrics for observability and evaluation."""
+
+    question: str
+    use_llm: bool
+    retrieval_ms: float
+    generation_ms: float
+    total_ms: float
+    result_count: int
+    source_count: int
+
+
 class CodeQA(_BaseAssistant):
     """
     Answers questions about the indexed codebase using RAG.
@@ -88,6 +102,7 @@ class CodeQA(_BaseAssistant):
         super().__init__(**kwargs)
         self.retriever = retriever
         self.top_k = top_k
+        self.last_query_metrics: QAQueryMetrics | None = None
 
     # ------------------------------------------------------------------
     # Public API
@@ -103,12 +118,14 @@ class CodeQA(_BaseAssistant):
         """Return a stream iterator plus source metadata for progressive output."""
         logger.info("CodeQA.ask_stream: %s", question[:80])
 
+        retrieval_started = perf_counter()
         results = self.retriever.search(
             query=question,
             top_k=self.top_k,
             language_filter=language_filter,
             path_prefix=path_prefix,
         )
+        retrieval_ms = (perf_counter() - retrieval_started) * 1000.0
 
         sources = sorted({r.source_path for r in results})
 
@@ -118,6 +135,15 @@ class CodeQA(_BaseAssistant):
             def _single() -> Iterator[str]:
                 yield context
 
+            self.last_query_metrics = QAQueryMetrics(
+                question=question,
+                use_llm=False,
+                retrieval_ms=retrieval_ms,
+                generation_ms=0.0,
+                total_ms=retrieval_ms,
+                result_count=len(results),
+                source_count=len(sources),
+            )
             return _single(), sources, results
 
         context = self._format_context(results)
@@ -150,6 +176,7 @@ class CodeQA(_BaseAssistant):
         -------
         QAResponse
         """
+        started = perf_counter()
         stream, sources, results = self.ask_stream(
             question=question,
             language_filter=language_filter,
@@ -157,6 +184,22 @@ class CodeQA(_BaseAssistant):
             use_llm=use_llm,
         )
         answer = "".join(stream)
+        retrieval_ms = 0.0
+        maybe_metrics = getattr(self.retriever, "last_metrics", None)
+        maybe_total_ms = getattr(maybe_metrics, "total_ms", None) if maybe_metrics is not None else None
+        if isinstance(maybe_total_ms, (int, float)):
+            retrieval_ms = float(maybe_total_ms)
+        total_ms = (perf_counter() - started) * 1000.0
+        generation_ms = max(0.0, total_ms - retrieval_ms)
+        self.last_query_metrics = QAQueryMetrics(
+            question=question,
+            use_llm=use_llm,
+            retrieval_ms=retrieval_ms,
+            generation_ms=generation_ms,
+            total_ms=total_ms,
+            result_count=len(results),
+            source_count=len(sources),
+        )
         return QAResponse(
             question=question,
             answer=answer,

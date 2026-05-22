@@ -122,6 +122,17 @@ class TestCodeQA:
         assert response.answer == "ab"
         assert response.sources == ["/src/foo.py"]
 
+    def test_last_query_metrics_populated_after_ask(self):
+        qa = _make_assistant(CodeQA)
+        qa.ask("measure this", use_llm=False)
+
+        metrics = qa.last_query_metrics
+        assert metrics is not None
+        assert metrics.question == "measure this"
+        assert metrics.use_llm is False
+        assert metrics.total_ms >= 0.0
+        assert metrics.retrieval_ms >= 0.0
+
 
 # ---------------------------------------------------------------------------
 # TestGenerator

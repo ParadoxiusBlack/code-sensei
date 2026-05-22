@@ -149,3 +149,14 @@ class TestRetriever:
         r = Retriever(vector_store=mock_vector_store, embedder=mock_embedder)
         results = r.search("nothing")
         assert results == []
+
+    def test_last_metrics_populated(self, retriever):
+        retriever.search("metrics query", top_k=4)
+        metrics = retriever.last_metrics
+        assert metrics is not None
+        assert metrics.query == "metrics query"
+        assert metrics.top_k == 4
+        assert metrics.results_count >= 0
+        assert metrics.total_ms >= 0.0
+        assert metrics.embed_ms >= 0.0
+        assert metrics.vector_query_ms >= 0.0

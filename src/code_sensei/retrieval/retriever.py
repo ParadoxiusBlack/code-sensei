@@ -16,12 +16,28 @@ Design notes
 from __future__ import annotations
 
 import logging
+from time import perf_counter
 from dataclasses import dataclass, field
 
 from ..indexer.embedder import Embedder
 from .vector_store import VectorStore
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class RetrievalMetrics:
+    """Lightweight timings and outcome stats for a retrieval query."""
+
+    query: str
+    top_k: int
+    language_filter: str | None
+    path_prefix: str | None
+    embed_ms: float
+    vector_query_ms: float
+    total_ms: float
+    results_count: int
+    avg_score: float
 
 
 @dataclass
@@ -69,6 +85,7 @@ class Retriever:
         self.vector_store = vector_store
         self.embedder = embedder
         self.default_top_k = default_top_k
+        self.last_metrics: RetrievalMetrics | None = None
 
     # ------------------------------------------------------------------
     # Public API
@@ -100,19 +117,24 @@ class Retriever:
         list[RetrievalResult]
             Results ordered by descending similarity score.
         """
+        started = perf_counter()
         k = top_k if top_k is not None else self.default_top_k
+        embed_started = perf_counter()
         query_embedding = self.embedder.embed_query(query)
+        embed_ms = (perf_counter() - embed_started) * 1000.0
 
         # Build optional ChromaDB ``where`` filter.
         where: dict | None = None
         if language_filter:
             where = {"language": language_filter}
 
+        vector_query_started = perf_counter()
         raw_hits = self.vector_store.query(
             query_embedding=query_embedding,
             n_results=k,
             where=where,
         )
+        vector_query_ms = (perf_counter() - vector_query_started) * 1000.0
 
         results: list[RetrievalResult] = []
         for hit in raw_hits:
@@ -139,5 +161,18 @@ class Retriever:
             )
 
         results.sort(key=lambda r: r.score, reverse=True)
+        avg_score = (sum(r.score for r in results) / len(results)) if results else 0.0
+        total_ms = (perf_counter() - started) * 1000.0
+        self.last_metrics = RetrievalMetrics(
+            query=query,
+            top_k=k,
+            language_filter=language_filter,
+            path_prefix=path_prefix,
+            embed_ms=embed_ms,
+            vector_query_ms=vector_query_ms,
+            total_ms=total_ms,
+            results_count=len(results),
+            avg_score=avg_score,
+        )
         logger.debug("Query '%s' returned %d results.", query[:60], len(results))
         return results

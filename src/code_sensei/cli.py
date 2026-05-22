@@ -19,6 +19,7 @@ gui     — Launch the desktop GUI front-end.
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 import sys
@@ -590,6 +591,65 @@ def watch(ctx: click.Context, project_dir: str) -> None:
                 time.sleep(1)
         except KeyboardInterrupt:
             console.print("\n[dim]Watcher stopped.[/]")
+
+
+# ---------------------------------------------------------------------------
+# benchmark-retrieval
+# ---------------------------------------------------------------------------
+
+
+@main.command("benchmark-retrieval")
+@click.option(
+    "--project-dir", "-p", default=".", type=click.Path(exists=True, file_okay=False),
+)
+@click.option(
+    "--dataset", "-d", required=True, type=click.Path(exists=True, dir_okay=False),
+    help="Path to JSON benchmark dataset.",
+)
+@click.option("--top-k", "-k", default=8, show_default=True, help="Default top-k if omitted.")
+@click.pass_context
+def benchmark_retrieval(ctx: click.Context, project_dir: str, dataset: str, top_k: int) -> None:
+    """Run retrieval quality benchmarks from a JSON dataset."""
+    root = Path(project_dir).resolve()
+    dataset_path = Path(dataset).resolve()
+
+    from code_sensei.evaluation.retrieval_benchmark import benchmark_queries_from_dicts
+
+    _, _, retriever = _load_pipeline(root)
+
+    try:
+        rows = json.loads(dataset_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        _error_panel("Failed to load benchmark dataset.", hint=str(exc))
+        sys.exit(1)
+
+    if not isinstance(rows, list):
+        _error_panel("Invalid benchmark dataset format.", hint="Expected a JSON array.")
+        sys.exit(1)
+
+    normalized_rows = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        normalized_rows.append(
+            {
+                "query": row.get("query", ""),
+                "expected_sources": row.get("expected_sources", []),
+                "top_k": row.get("top_k", top_k),
+            }
+        )
+
+    summary = benchmark_queries_from_dicts(retriever, normalized_rows)
+
+    table = Table(title="Retrieval Benchmark Summary")
+    table.add_column("Metric", style="cyan")
+    table.add_column("Value", style="bold")
+    table.add_row("Queries", str(summary.total_queries))
+    table.add_row("Avg latency (ms)", f"{summary.avg_latency_ms:.2f}")
+    table.add_row("Recall@k", f"{summary.recall_at_k:.3f}")
+    table.add_row("MRR", f"{summary.mean_reciprocal_rank:.3f}")
+    table.add_row("Hit rate", f"{summary.pass_at_least_one_hit_rate:.3f}")
+    console.print(table)
 
 
 # ---------------------------------------------------------------------------
