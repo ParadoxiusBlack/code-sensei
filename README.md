@@ -117,6 +117,7 @@ Usage: code-sensei [OPTIONS] COMMAND [ARGS]...
 Commands:
   index     Index (or re-index) a codebase directory.
   ask       Ask a natural-language question about the indexed codebase.
+  benchmark-retrieval  Run retrieval quality benchmarks from a dataset.
   tests     Generate unit / integration tests for a file or module.
   refactor  Analyse code for refactoring opportunities.
   docs      Generate documentation for a file, module, or the project.
@@ -141,9 +142,81 @@ code-sensei docs . --type readme --output README_generated.md
 # Watch for changes and auto-reindex
 code-sensei watch /path/to/project
 
+# Run retrieval benchmark dataset
+code-sensei benchmark-retrieval -p . -d benchmarks/retrieval/code_sensei_smoke.json
+
 # Launch desktop GUI (Phase 4)
 code-sensei gui -p /path/to/project
 ```
+
+### Metrics Output
+
+The CLI now exposes lightweight observability metrics for core workflows.
+
+`ask` prints:
+- total query time
+- retrieval time
+- generation time
+- embedding time
+- vector query time
+- average result score
+
+`index` prints:
+- total indexing time
+- files/sec
+- chunks/sec
+- average chunks/file
+
+Example:
+
+```bash
+code-sensei ask "Where is file loading implemented?" -p . --no-stream
+code-sensei index .
+```
+
+### Retrieval Benchmarks
+
+Benchmark datasets live under `benchmarks/retrieval/` and are JSON arrays with this shape:
+
+```json
+[
+  {
+    "query": "Which method converts Chroma cosine distance into a 0-to-1 similarity score?",
+    "expected_sources": ["src/code_sensei/retrieval/retriever.py"],
+    "top_k": 5
+  }
+]
+```
+
+Run a benchmark and save the machine-readable summary:
+
+```bash
+code-sensei benchmark-retrieval \
+  -p . \
+  -d benchmarks/retrieval/code_sensei_smoke.json \
+  --output-json retrieval-benchmark-summary.json
+```
+
+The benchmark summary includes:
+- average latency
+- Recall@k
+- MRR
+- hit rate
+- per-query case details
+
+### CI Benchmark Reporting
+
+GitHub Actions now includes a retrieval benchmark job that:
+- provisions Ollama
+- pulls `nomic-embed-text`
+- indexes the repository
+- runs the smoke retrieval benchmark
+- compares the summary to `benchmarks/retrieval/ci_baseline_summary.json`
+- publishes a delta report artifact and step summary
+
+The delta report also supports soft, non-blocking regression warnings for:
+- latency regressions above a configured threshold
+- retrieval quality drops beyond a configured threshold
 
 ---
 
@@ -264,6 +337,9 @@ ruff check src/ tests/
 
 # Format
 black src/ tests/
+
+# Run retrieval smoke benchmark
+code-sensei benchmark-retrieval -p . -d benchmarks/retrieval/code_sensei_smoke.json
 ```
 
 ---

@@ -127,6 +127,15 @@ class TestFileLoader:
         names = {f.path.name for f in files}
         assert "cached.py" not in names
 
+    def test_ignores_configured_files(self, tmp_path: Path):
+        (tmp_path / "main.py").write_text("x = 1")
+        (tmp_path / "retrieval-benchmark-summary.json").write_text("{}")
+        loader = FileLoader(root=tmp_path, extensions={".py", ".json"})
+        files = list(loader.load())
+        names = {f.path.name for f in files}
+        assert "main.py" in names
+        assert "retrieval-benchmark-summary.json" not in names
+
     def test_metadata_contains_relative_path(self, tmp_project: Path):
         loader = FileLoader(root=tmp_project, extensions={".py"})
         files = list(loader.load())

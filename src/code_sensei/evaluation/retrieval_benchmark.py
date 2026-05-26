@@ -3,9 +3,25 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import PurePath
 from time import perf_counter
 
 from code_sensei.retrieval.retriever import RetrievalResult, Retriever
+
+
+def _normalize_source_path(path: str) -> str:
+    """Normalize path separators for benchmark comparisons."""
+    return str(PurePath(path)).replace("\\", "/")
+
+
+def _source_matches(returned_source: str, expected_source: str) -> bool:
+    """Treat absolute indexed paths as matches for relative benchmark paths."""
+    normalized_returned = _normalize_source_path(returned_source)
+    normalized_expected = _normalize_source_path(expected_source)
+    return (
+        normalized_returned == normalized_expected
+        or normalized_returned.endswith(f"/{normalized_expected}")
+    )
 
 
 @dataclass
@@ -30,6 +46,18 @@ class BenchmarkCaseResult:
     recall_at_k: float
     reciprocal_rank: float
 
+    def to_dict(self) -> dict:
+        return {
+            "query": self.query,
+            "top_k": self.top_k,
+            "expected_sources": self.expected_sources,
+            "returned_sources": self.returned_sources,
+            "latency_ms": self.latency_ms,
+            "hits_at_k": self.hits_at_k,
+            "recall_at_k": self.recall_at_k,
+            "reciprocal_rank": self.reciprocal_rank,
+        }
+
 
 @dataclass
 class BenchmarkSummary:
@@ -41,6 +69,16 @@ class BenchmarkSummary:
     mean_reciprocal_rank: float
     pass_at_least_one_hit_rate: float
     cases: list[BenchmarkCaseResult]
+
+    def to_dict(self) -> dict:
+        return {
+            "total_queries": self.total_queries,
+            "avg_latency_ms": self.avg_latency_ms,
+            "recall_at_k": self.recall_at_k,
+            "mean_reciprocal_rank": self.mean_reciprocal_rank,
+            "pass_at_least_one_hit_rate": self.pass_at_least_one_hit_rate,
+            "cases": [case.to_dict() for case in self.cases],
+        }
 
 
 def evaluate_queries(
@@ -56,14 +94,19 @@ def evaluate_queries(
         latency_ms = (perf_counter() - started) * 1000.0
 
         returned_sources = [r.source_path for r in results]
-        expected = set(item.expected_sources)
+        expected_sources = list(item.expected_sources)
 
-        hits_at_k = sum(1 for src in returned_sources if src in expected)
-        recall_at_k = (hits_at_k / len(expected)) if expected else 1.0
+        matched_expected = {
+            expected_source
+            for expected_source in expected_sources
+            if any(_source_matches(src, expected_source) for src in returned_sources)
+        }
+        hits_at_k = len(matched_expected)
+        recall_at_k = (hits_at_k / len(expected_sources)) if expected_sources else 1.0
 
         reciprocal_rank = 0.0
         for idx, src in enumerate(returned_sources, start=1):
-            if src in expected:
+            if any(_source_matches(src, expected_source) for expected_source in expected_sources):
                 reciprocal_rank = 1.0 / idx
                 break
 

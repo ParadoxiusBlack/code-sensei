@@ -64,3 +64,33 @@ def test_benchmark_queries_from_dicts_defaults_top_k():
     assert summary.recall_at_k == 1.0
     # Evaluator default top_k should be used when omitted in row.
     assert summary.cases[0].top_k == 8
+
+
+def test_evaluate_queries_matches_absolute_returned_paths_against_relative_expected_paths():
+    vector_store = MagicMock()
+    embedder = MagicMock()
+    embedder.embed_query.return_value = [0.1] * 4
+    vector_store.query.return_value = [
+        _make_hit(
+            "C:/repo/src/code_sensei/indexer/file_loader.py",
+            0.1,
+        )
+    ]
+
+    from code_sensei.retrieval.retriever import Retriever
+
+    retriever = Retriever(vector_store=vector_store, embedder=embedder, default_top_k=3)
+    summary = evaluate_queries(
+        retriever,
+        [
+            BenchmarkQuery(
+                query="find loader",
+                expected_sources=["src/code_sensei/indexer/file_loader.py"],
+                top_k=3,
+            )
+        ],
+    )
+
+    assert summary.total_queries == 1
+    assert summary.recall_at_k == 1.0
+    assert summary.mean_reciprocal_rank == 1.0

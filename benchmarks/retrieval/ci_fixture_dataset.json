@@ -1,0 +1,17 @@
+[
+  {
+    "query": "Where is file loading implemented?",
+    "expected_sources": ["src/code_sensei/indexer/file_loader.py"],
+    "top_k": 3
+  },
+  {
+    "query": "Where is retrieval ranking logic implemented?",
+    "expected_sources": ["src/code_sensei/retrieval/retriever.py"],
+    "top_k": 3
+  },
+  {
+    "query": "Where does the GUI export annotated files?",
+    "expected_sources": ["src/code_sensei/gui/app.py"],
+    "top_k": 3
+  }
+]

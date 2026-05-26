@@ -1,0 +1,63 @@
+{
+  "total_queries": 3,
+  "avg_latency_ms": 752.813400021599,
+  "recall_at_k": 1.0,
+  "mean_reciprocal_rank": 0.8333333333333334,
+  "pass_at_least_one_hit_rate": 1.0,
+  "cases": [
+    {
+      "query": "Which module defines the FileLoader class and its _walk generator for streaming source files?",
+      "top_k": 5,
+      "expected_sources": [
+        "src/code_sensei/indexer/file_loader.py"
+      ],
+      "returned_sources": [
+        "C:\\Users\\cjp37\\OneDrive\\Documents\\Project Devolopment\\code-sensei\\src\\code_sensei\\indexer\\file_loader.py",
+        "C:\\Users\\cjp37\\OneDrive\\Documents\\Project Devolopment\\code-sensei\\tests\\test_cli_metrics.py",
+        "C:\\Users\\cjp37\\OneDrive\\Documents\\Project Devolopment\\code-sensei\\tests\\test_cli_metrics.py",
+        "C:\\Users\\cjp37\\OneDrive\\Documents\\Project Devolopment\\code-sensei\\docs\\DEMO_RESULTS.md",
+        "C:\\Users\\cjp37\\OneDrive\\Documents\\Project Devolopment\\code-sensei\\src\\code_sensei\\gui\\app.py"
+      ],
+      "latency_ms": 2140.7376000424847,
+      "hits_at_k": 1,
+      "recall_at_k": 1.0,
+      "reciprocal_rank": 1.0
+    },
+    {
+      "query": "Which method converts Chroma cosine distance into a 0-to-1 similarity score?",
+      "top_k": 5,
+      "expected_sources": [
+        "src/code_sensei/retrieval/retriever.py"
+      ],
+      "returned_sources": [
+        "C:\\Users\\cjp37\\OneDrive\\Documents\\Project Devolopment\\code-sensei\\src\\code_sensei\\retrieval\\retriever.py",
+        "C:\\Users\\cjp37\\OneDrive\\Documents\\Project Devolopment\\code-sensei\\src\\code_sensei\\retrieval\\retriever.py",
+        "C:\\Users\\cjp37\\OneDrive\\Documents\\Project Devolopment\\code-sensei\\src\\code_sensei\\retrieval\\retriever.py",
+        "C:\\Users\\cjp37\\OneDrive\\Documents\\Project Devolopment\\code-sensei\\tests\\test_retrieval_benchmark.py",
+        "C:\\Users\\cjp37\\OneDrive\\Documents\\Project Devolopment\\code-sensei\\src\\code_sensei\\evaluation\\retrieval_benchmark.py"
+      ],
+      "latency_ms": 59.36320003820583,
+      "hits_at_k": 1,
+      "recall_at_k": 1.0,
+      "reciprocal_rank": 1.0
+    },
+    {
+      "query": "Which GUI method writes the annotated source export file to disk?",
+      "top_k": 5,
+      "expected_sources": [
+        "src/code_sensei/gui/app.py"
+      ],
+      "returned_sources": [
+        "C:\\Users\\cjp37\\OneDrive\\Documents\\Project Devolopment\\code-sensei\\tests\\test_chunk_visualization.py",
+        "C:\\Users\\cjp37\\OneDrive\\Documents\\Project Devolopment\\code-sensei\\src\\code_sensei\\gui\\app.py",
+        "C:\\Users\\cjp37\\OneDrive\\Documents\\Project Devolopment\\code-sensei\\src\\code_sensei\\gui\\app.py",
+        "C:\\Users\\cjp37\\OneDrive\\Documents\\Project Devolopment\\code-sensei\\src\\code_sensei\\gui\\app.py",
+        "C:\\Users\\cjp37\\OneDrive\\Documents\\Project Devolopment\\code-sensei\\src\\code_sensei\\gui\\app.py"
+      ],
+      "latency_ms": 58.33939998410642,
+      "hits_at_k": 1,
+      "recall_at_k": 1.0,
+      "reciprocal_rank": 0.5
+    }
+  ]
+}

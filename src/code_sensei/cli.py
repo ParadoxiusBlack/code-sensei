@@ -23,6 +23,7 @@ import json
 import logging
 import re
 import sys
+from time import perf_counter
 from pathlib import Path
 
 import click
@@ -100,6 +101,16 @@ def _handle_vector_store_error(exc: Exception, collection: str) -> None:
 def _setup_logging(verbose: bool) -> None:
     level = logging.DEBUG if verbose else logging.WARNING
     logging.basicConfig(level=level, format="%(levelname)s — %(name)s — %(message)s")
+
+
+def _print_metrics_table(title: str, rows: list[tuple[str, str]]) -> None:
+    """Render a compact metrics table."""
+    table = Table(title=title)
+    table.add_column("Metric", style="cyan")
+    table.add_column("Value", style="bold")
+    for label, value in rows:
+        table.add_row(label, value)
+    console.print(table)
 
 
 def _load_pipeline(project_dir: Path):
@@ -198,6 +209,7 @@ def index(ctx: click.Context, project_dir: str, extensions: tuple[str, ...]) -> 
 
     total_files = 0
     total_chunks = 0
+    started = perf_counter()
 
     try:
         with Progress(
@@ -221,6 +233,18 @@ def index(ctx: click.Context, project_dir: str, extensions: tuple[str, ...]) -> 
     console.print(
         f"\n[green]✓[/] Indexed [bold]{total_files}[/] files, "
         f"[bold]{total_chunks}[/] chunks into collection [cyan]'{collection}'[/].\n"
+    )
+    elapsed_ms = (perf_counter() - started) * 1000.0
+    files_per_sec = (total_files / (elapsed_ms / 1000.0)) if elapsed_ms > 0 and total_files else 0.0
+    chunks_per_sec = (total_chunks / (elapsed_ms / 1000.0)) if elapsed_ms > 0 and total_chunks else 0.0
+    _print_metrics_table(
+        "Index Metrics",
+        [
+            ("Elapsed (ms)", f"{elapsed_ms:.2f}"),
+            ("Files/sec", f"{files_per_sec:.2f}"),
+            ("Chunks/sec", f"{chunks_per_sec:.2f}"),
+            ("Avg chunks/file", f"{(total_chunks / total_files) if total_files else 0.0:.2f}"),
+        ],
     )
 
 
@@ -285,6 +309,30 @@ def ask(
         console.print("\n[dim]Sources:[/]")
         for src in sources:
             console.print(f"  [cyan]{src}[/]")
+
+    query_metrics = qa.last_query_metrics
+    retrieval_metrics = retriever.last_metrics
+    if query_metrics or retrieval_metrics:
+        rows: list[tuple[str, str]] = []
+        if query_metrics is not None:
+            rows.extend(
+                [
+                    ("Total (ms)", f"{query_metrics.total_ms:.2f}"),
+                    ("Retrieval (ms)", f"{query_metrics.retrieval_ms:.2f}"),
+                    ("Generation (ms)", f"{query_metrics.generation_ms:.2f}"),
+                    ("Result count", str(query_metrics.result_count)),
+                    ("Source count", str(query_metrics.source_count)),
+                ]
+            )
+        if retrieval_metrics is not None:
+            rows.extend(
+                [
+                    ("Embed (ms)", f"{retrieval_metrics.embed_ms:.2f}"),
+                    ("Vector query (ms)", f"{retrieval_metrics.vector_query_ms:.2f}"),
+                    ("Avg score", f"{retrieval_metrics.avg_score:.3f}"),
+                ]
+            )
+        _print_metrics_table("Ask Metrics", rows)
 
 
 # ---------------------------------------------------------------------------
@@ -607,8 +655,15 @@ def watch(ctx: click.Context, project_dir: str) -> None:
     help="Path to JSON benchmark dataset.",
 )
 @click.option("--top-k", "-k", default=8, show_default=True, help="Default top-k if omitted.")
+@click.option("--output-json", default=None, type=click.Path(), help="Write summary JSON to file.")
 @click.pass_context
-def benchmark_retrieval(ctx: click.Context, project_dir: str, dataset: str, top_k: int) -> None:
+def benchmark_retrieval(
+    ctx: click.Context,
+    project_dir: str,
+    dataset: str,
+    top_k: int,
+    output_json: str | None,
+) -> None:
     """Run retrieval quality benchmarks from a JSON dataset."""
     root = Path(project_dir).resolve()
     dataset_path = Path(dataset).resolve()
@@ -650,6 +705,12 @@ def benchmark_retrieval(ctx: click.Context, project_dir: str, dataset: str, top_
     table.add_row("MRR", f"{summary.mean_reciprocal_rank:.3f}")
     table.add_row("Hit rate", f"{summary.pass_at_least_one_hit_rate:.3f}")
     console.print(table)
+
+    if output_json:
+        Path(output_json).write_text(
+            json.dumps(summary.to_dict(), indent=2),
+            encoding="utf-8",
+        )
 
 
 # ---------------------------------------------------------------------------

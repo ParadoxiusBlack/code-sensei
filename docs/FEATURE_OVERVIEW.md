@@ -1,11 +1,13 @@
-# CodeSensei Phase 2: Complete Feature Overview
+# CodeSensei: Current Feature Overview
 
 ## Project Status
 - **Phase 1**: ✓ Complete - Scaffolding and architecture
-- **Phase 2**: ✓ Complete - All assistant methods, caching, CLI, hybrid LLM
-- **Phase 3**: Ready for planning
+- **Phase 2**: ✓ Complete - Core assistant methods, caching, CLI, hybrid LLM
+- **Phase 3**: ✓ Complete - Error handling, prompt refinement, performance tuning
+- **Phase 4**: ✓ Complete - PyQt6 GUI with chunk visibility tools
+- **Phase 5**: ✓ Complete - Benchmarking, observability metrics, CI delta reporting
 
-**Total Test Coverage**: 108/108 tests passing
+**Current Test Status**: 176 passed, 2 warnings
 
 ---
 
@@ -91,6 +93,37 @@ code-sensei chat -p .
 > /llm-off
 > Show me just the file structure
 [switches to retrieval-only mode]
+```
+
+---
+
+### 6. Benchmarking & Observability
+**Purpose**: Measure retrieval quality and surface runtime metrics for tuning and CI visibility
+
+**Key Capabilities**:
+- `benchmark-retrieval` CLI command for dataset-driven retrieval evaluation
+- Benchmark datasets stored under `benchmarks/retrieval/`
+- Summary metrics:
+  - Recall@k
+  - mean reciprocal rank (MRR)
+  - hit rate
+  - average latency
+- Runtime metrics surfaced in CLI output for:
+  - `ask`
+  - `index`
+- CI benchmark delta reporting with soft regression warnings
+
+**Relevant Files**:
+- [src/code_sensei/evaluation/retrieval_benchmark.py](src/code_sensei/evaluation/retrieval_benchmark.py)
+- [scripts/report_retrieval_benchmark_delta.py](scripts/report_retrieval_benchmark_delta.py)
+- [benchmarks/retrieval/code_sensei_smoke.json](benchmarks/retrieval/code_sensei_smoke.json)
+- [.github/workflows/ci.yml](.github/workflows/ci.yml)
+
+**Example Usage**:
+```bash
+code-sensei benchmark-retrieval -p . -d benchmarks/retrieval/code_sensei_smoke.json
+code-sensei ask "Which method converts Chroma cosine distance into a 0-to-1 similarity score?" -p . --no-stream
+code-sensei index .
 ```
 
 ---

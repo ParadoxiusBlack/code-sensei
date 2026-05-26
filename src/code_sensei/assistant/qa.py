@@ -149,7 +149,27 @@ class CodeQA(_BaseAssistant):
         context = self._format_context(results)
         prompt = _QA_PROMPT_TEMPLATE.format(context=context, question=question)
         full_prompt = self._compose_prompt(_SYSTEM_PROMPT, prompt)
-        return self._invoke_stream(full_prompt), sources, results
+
+        generation_started = perf_counter()
+
+        def _tracked_stream() -> Iterator[str]:
+            parts: list[str] = []
+            for piece in self._invoke_stream(full_prompt):
+                parts.append(piece)
+                yield piece
+
+            total_ms = retrieval_ms + ((perf_counter() - generation_started) * 1000.0)
+            self.last_query_metrics = QAQueryMetrics(
+                question=question,
+                use_llm=True,
+                retrieval_ms=retrieval_ms,
+                generation_ms=max(0.0, total_ms - retrieval_ms),
+                total_ms=total_ms,
+                result_count=len(results),
+                source_count=len(sources),
+            )
+
+        return _tracked_stream(), sources, results
 
     def ask(
         self,

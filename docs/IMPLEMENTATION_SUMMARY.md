@@ -39,6 +39,16 @@ code-sensei chat --no-llm
 /clear      # Clear memory
 ```
 
+### 5. **Benchmarking & Observability (Current System State)**
+- Added dataset-driven retrieval benchmarking via `benchmark-retrieval`.
+- Added benchmark assets under `benchmarks/retrieval/` with maintained baseline summary.
+- Added benchmark delta reporting script (`scripts/report_retrieval_benchmark_delta.py`) used in CI.
+- Added non-blocking soft regression warnings in CI for:
+   - latency regressions
+   - retrieval quality drops
+- Added runtime metrics surfaced in CLI output for `ask` and `index`.
+- Added benchmark artifact exclusions from indexing (`benchmarks/`, generated benchmark summary/report files) to reduce retrieval noise.
+
 ---
 
 ## 📁 Files Modified/Created
@@ -56,7 +66,7 @@ code-sensei chat --no-llm
 
 ## 🧪 Test Results
 
-✅ **All 108 tests passing**
+✅ **Current suite: 176 passed, 2 warnings**
 - 25 assistant tests
 - 15 conversation memory tests
 - 14 SQLite cache tests

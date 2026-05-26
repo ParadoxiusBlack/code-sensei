@@ -4,6 +4,49 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added (Phase 5 — Benchmarking, Observability, and CI)
+- New retrieval evaluation package in `src/code_sensei/evaluation/` with benchmark helpers for:
+  - Recall@k
+  - mean reciprocal rank (MRR)
+  - hit rate
+  - per-query latency
+- New `benchmark-retrieval` CLI command for running retrieval quality benchmarks from JSON datasets.
+- New benchmark datasets under `benchmarks/retrieval/`:
+  - `code_sensei_smoke.json`
+  - `ci_baseline_summary.json`
+- New retrieval benchmark delta reporting script: `scripts/report_retrieval_benchmark_delta.py`.
+- New CI workflow in `.github/workflows/ci.yml` covering:
+  - lint (`ruff`)
+  - formatting check (`black --check`)
+  - typing (`mypy`)
+  - test suite execution
+  - real indexed-repo retrieval benchmark reporting
+- New CLI metrics output for:
+  - `ask` command (`Ask Metrics`)
+  - `index` command (`Index Metrics`)
+- New GUI E2E workflow coverage in `tests/test_gui_e2e.py` for:
+  - startup
+  - ask flow
+  - source selection
+  - chunk compare
+  - export
+
+### Changed
+- Retrieval benchmark matching now normalizes relative expected paths against absolute indexed paths.
+- Default indexing ignores benchmark/report artifacts to reduce retrieval pollution:
+  - `benchmarks/`
+  - `retrieval-benchmark-summary.json`
+  - `retrieval-benchmark-summary.md`
+- Retrieval smoke dataset queries were tightened to target implementation files more precisely and reduce lexical overlap.
+- CI retrieval benchmark job now uses a real Ollama-backed indexed-repo run instead of fixture-only benchmark results.
+- Soft benchmark regression warnings were added to CI reporting with non-blocking thresholds for:
+  - latency regression
+  - retrieval quality drops
+
+### Verification
+- Full regression suite passed: `172 passed, 2 warnings`.
+- Real retrieval baseline refreshed from a local Ollama-backed benchmark run.
+
 ### Added (Phase 4 — GUI)
 - New PyQt6 desktop front-end in `src/code_sensei/gui/app.py`.
 - New `code-sensei gui` CLI command to launch the desktop application.

@@ -202,6 +202,33 @@ CodeSensei Index Status
 
 ---
 
+## Retrieval Benchmark Delta Example
+
+CodeSensei now includes a retrieval benchmark workflow and CI delta reporting. A real benchmark summary can be compared against the checked-in baseline to show quality and latency drift over time.
+
+**Example delta report:**
+
+```markdown
+## Retrieval Benchmark Delta
+
+| Metric | Current | Baseline | Delta |
+|---|---:|---:|---:|
+| total_queries | 3 | 3 | +0 |
+| avg_latency_ms | 752.813400021599 | 752.813400021599 | +0.000 |
+| recall_at_k | 1.0 | 1.0 | +0.000 |
+| mean_reciprocal_rank | 0.8333333333333334 | 0.8333333333333334 | +0.000 |
+| pass_at_least_one_hit_rate | 1.0 | 1.0 | +0.000 |
+```
+
+This report is generated from:
+- benchmark dataset: `benchmarks/retrieval/code_sensei_smoke.json`
+- current summary: `retrieval-benchmark-summary.json`
+- baseline summary: `benchmarks/retrieval/ci_baseline_summary.json`
+
+It is published in CI as both a step summary and an uploaded artifact, and it supports soft non-blocking warnings for latency regressions or retrieval quality drops.
+
+---
+
 ## Reproducing This Demo
 
 To run the same demo:

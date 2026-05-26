@@ -1,0 +1,17 @@
+{
+  "Where is file loading implemented?": [
+    "src/code_sensei/indexer/file_loader.py",
+    "src/code_sensei/indexer/chunker.py",
+    "src/code_sensei/indexer/embedder.py"
+  ],
+  "Where is retrieval ranking logic implemented?": [
+    "src/code_sensei/indexer/chunker.py",
+    "src/code_sensei/retrieval/retriever.py",
+    "src/code_sensei/retrieval/vector_store.py"
+  ],
+  "Where does the GUI export annotated files?": [
+    "src/code_sensei/gui/app.py",
+    "src/code_sensei/gui_main.py",
+    "src/code_sensei/cli.py"
+  ]
+}

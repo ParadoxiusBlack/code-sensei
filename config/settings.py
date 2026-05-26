@@ -160,9 +160,18 @@ DEFAULT_IGNORE_DIRS: frozenset[str] = frozenset(
         ".tox",
         "dist",
         "build",
+        "benchmarks",
         ".eggs",
         "*.egg-info",
         ".chroma",
         ".cache",
+    }
+)
+
+# Specific generated or benchmark artifact file names to exclude from indexing.
+DEFAULT_IGNORE_FILES: frozenset[str] = frozenset(
+    {
+        "retrieval-benchmark-summary.json",
+        "retrieval-benchmark-summary.md",
     }
 )

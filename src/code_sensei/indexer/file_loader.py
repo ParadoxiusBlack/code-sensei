@@ -25,12 +25,13 @@ import chardet
 
 # Allow the module to be imported standalone (outside the installed package).
 try:
-    from config.settings import DEFAULT_IGNORE_DIRS, DEFAULT_SOURCE_EXTENSIONS
+    from config.settings import DEFAULT_IGNORE_DIRS, DEFAULT_IGNORE_FILES, DEFAULT_SOURCE_EXTENSIONS
 except ImportError:
     DEFAULT_SOURCE_EXTENSIONS: frozenset[str] = frozenset({".py", ".js", ".ts", ".md"})
     DEFAULT_IGNORE_DIRS: frozenset[str] = frozenset(
         {"__pycache__", ".git", "node_modules", ".venv", "venv"}
     )
+    DEFAULT_IGNORE_FILES: frozenset[str] = frozenset()
 
 logger = logging.getLogger(__name__)
 
@@ -116,6 +117,7 @@ class FileLoader:
         root: str | Path,
         extensions: Iterable[str] | None = None,
         ignore_dirs: Iterable[str] | None = None,
+        ignore_files: Iterable[str] | None = None,
     ) -> None:
         self.root = Path(root).resolve()
         self.extensions: frozenset[str] = (
@@ -123,6 +125,9 @@ class FileLoader:
         )
         self.ignore_dirs: frozenset[str] = (
             frozenset(ignore_dirs) if ignore_dirs is not None else DEFAULT_IGNORE_DIRS
+        )
+        self.ignore_files: frozenset[str] = (
+            frozenset(ignore_files) if ignore_files is not None else DEFAULT_IGNORE_FILES
         )
 
     # ------------------------------------------------------------------
@@ -154,6 +159,8 @@ class FileLoader:
                 continue
             # Skip paths that contain an ignored directory component.
             if any(part in self.ignore_dirs for part in item.parts):
+                continue
+            if item.name in self.ignore_files:
                 continue
             if item.suffix.lower() in self.extensions:
                 yield item
