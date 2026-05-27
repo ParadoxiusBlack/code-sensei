@@ -9,6 +9,7 @@ from __future__ import annotations
 import time
 
 import pytest
+
 from code_sensei.cache.sqlite_cache import SqliteCache
 
 
