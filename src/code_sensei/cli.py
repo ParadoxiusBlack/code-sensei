@@ -23,8 +23,8 @@ import json
 import logging
 import re
 import sys
-from time import perf_counter
 from pathlib import Path
+from time import perf_counter
 
 import click
 from rich.console import Console
@@ -236,7 +236,9 @@ def index(ctx: click.Context, project_dir: str, extensions: tuple[str, ...]) -> 
     )
     elapsed_ms = (perf_counter() - started) * 1000.0
     files_per_sec = (total_files / (elapsed_ms / 1000.0)) if elapsed_ms > 0 and total_files else 0.0
-    chunks_per_sec = (total_chunks / (elapsed_ms / 1000.0)) if elapsed_ms > 0 and total_chunks else 0.0
+    chunks_per_sec = (
+        (total_chunks / (elapsed_ms / 1000.0)) if elapsed_ms > 0 and total_chunks else 0.0
+    )
     _print_metrics_table(
         "Index Metrics",
         [
@@ -256,7 +258,10 @@ def index(ctx: click.Context, project_dir: str, extensions: tuple[str, ...]) -> 
 @main.command()
 @click.argument("question")
 @click.option(
-    "--project-dir", "-p", default=".", type=click.Path(exists=True, file_okay=False),
+    "--project-dir",
+    "-p",
+    default=".",
+    type=click.Path(exists=True, file_okay=False),
     help="Project directory (used to resolve the vector-store collection).",
 )
 @click.option("--top-k", "-k", default=8, show_default=True, help="Chunks to retrieve.")
@@ -343,14 +348,23 @@ def ask(
 @main.command("tests")
 @click.argument("target")
 @click.option(
-    "--project-dir", "-p", default=".", type=click.Path(exists=True, file_okay=False),
+    "--project-dir",
+    "-p",
+    default=".",
+    type=click.Path(exists=True, file_okay=False),
 )
 @click.option(
-    "--framework", "-f", default="pytest", show_default=True,
+    "--framework",
+    "-f",
+    default="pytest",
+    show_default=True,
     help="Test framework (pytest, jest, junit, …).",
 )
 @click.option(
-    "--output", "-o", default=None, type=click.Path(),
+    "--output",
+    "-o",
+    default=None,
+    type=click.Path(),
     help="Write generated tests to this file.",
 )
 @click.pass_context
@@ -377,7 +391,9 @@ def generate_tests(
         Path(output).write_text(result.test_code)
         console.print(f"[green]✓[/] Tests written to [cyan]{output}[/].")
     else:
-        console.print(Panel(Markdown(f"```python\n{result.test_code}\n```"), title="Generated Tests"))
+        console.print(
+            Panel(Markdown(f"```python\n{result.test_code}\n```"), title="Generated Tests")
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -388,7 +404,10 @@ def generate_tests(
 @main.command()
 @click.argument("target")
 @click.option(
-    "--project-dir", "-p", default=".", type=click.Path(exists=True, file_okay=False),
+    "--project-dir",
+    "-p",
+    default=".",
+    type=click.Path(exists=True, file_okay=False),
 )
 @click.option("--language", "-l", default=None, help="Filter by language.")
 @click.pass_context
@@ -421,15 +440,23 @@ def refactor(
 @main.command()
 @click.argument("target")
 @click.option(
-    "--project-dir", "-p", default=".", type=click.Path(exists=True, file_okay=False),
+    "--project-dir",
+    "-p",
+    default=".",
+    type=click.Path(exists=True, file_okay=False),
 )
 @click.option(
-    "--type", "doc_type", default="docstrings", show_default=True,
+    "--type",
+    "doc_type",
+    default="docstrings",
+    show_default=True,
     type=click.Choice(["docstrings", "readme", "architecture", "api_reference"]),
     help="Type of documentation to generate.",
 )
 @click.option(
-    "--style", default="google", show_default=True,
+    "--style",
+    default="google",
+    show_default=True,
     type=click.Choice(["google", "numpy", "sphinx", "markdown"]),
 )
 @click.option("--output", "-o", default=None, type=click.Path())
@@ -468,15 +495,19 @@ def docs(
 
 @main.command()
 @click.option(
-    "--project-dir", "-p", default=".", type=click.Path(exists=True, file_okay=False),
+    "--project-dir",
+    "-p",
+    default=".",
+    type=click.Path(exists=True, file_okay=False),
 )
 @click.option(
-    "--session-id", "-s", default="default", show_default=True,
+    "--session-id",
+    "-s",
+    default="default",
+    show_default=True,
     help="Session ID for persistent conversation memory.",
 )
-@click.option(
-    "--no-llm", is_flag=True, help="Start in retrieval-only mode (no LLM)."
-)
+@click.option("--no-llm", is_flag=True, help="Start in retrieval-only mode (no LLM).")
 @click.option("--stream/--no-stream", default=True, show_default=True, help="Stream answer output.")
 @click.pass_context
 def chat(ctx: click.Context, project_dir: str, session_id: str, no_llm: bool, stream: bool) -> None:
@@ -568,7 +599,10 @@ def chat(ctx: click.Context, project_dir: str, session_id: str, no_llm: bool, st
 
 @main.command()
 @click.option(
-    "--project-dir", "-p", default=".", type=click.Path(exists=True, file_okay=False),
+    "--project-dir",
+    "-p",
+    default=".",
+    type=click.Path(exists=True, file_okay=False),
 )
 @click.pass_context
 def status(ctx: click.Context, project_dir: str) -> None:
@@ -648,10 +682,16 @@ def watch(ctx: click.Context, project_dir: str) -> None:
 
 @main.command("benchmark-retrieval")
 @click.option(
-    "--project-dir", "-p", default=".", type=click.Path(exists=True, file_okay=False),
+    "--project-dir",
+    "-p",
+    default=".",
+    type=click.Path(exists=True, file_okay=False),
 )
 @click.option(
-    "--dataset", "-d", required=True, type=click.Path(exists=True, dir_okay=False),
+    "--dataset",
+    "-d",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False),
     help="Path to JSON benchmark dataset.",
 )
 @click.option("--top-k", "-k", default=8, show_default=True, help="Default top-k if omitted.")
@@ -720,7 +760,10 @@ def benchmark_retrieval(
 
 @main.command()
 @click.option(
-    "--project-dir", "-p", default=".", type=click.Path(exists=True, file_okay=False),
+    "--project-dir",
+    "-p",
+    default=".",
+    type=click.Path(exists=True, file_okay=False),
 )
 @click.option("--top-k", "-k", default=8, show_default=True, help="Chunks to retrieve.")
 @click.option("--no-llm", is_flag=True, help="Start GUI in retrieval-only mode.")
@@ -734,10 +777,7 @@ def gui(ctx: click.Context, project_dir: str, top_k: int, no_llm: bool) -> None:
     except Exception as exc:
         _error_panel(
             "GUI module could not be loaded.",
-            hint=(
-                "Install GUI dependency with: pip install PyQt6\n"
-                f"Details: {exc}"
-            ),
+            hint=("Install GUI dependency with: pip install PyQt6\n" f"Details: {exc}"),
         )
         _windows_error_popup(
             "CodeSensei GUI Error",

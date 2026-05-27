@@ -8,12 +8,11 @@ The vector store and embedder are mocked so no external services are needed.
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
 from code_sensei.retrieval.retriever import RetrievalResult, Retriever
-
 
 # ---------------------------------------------------------------------------
 # Helpers / fixtures

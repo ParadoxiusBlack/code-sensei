@@ -30,9 +30,7 @@ if str(CONFIG) not in sys.path:
 @pytest.fixture()
 def tmp_project(tmp_path: Path) -> Path:
     """Create a minimal fake codebase in a temp directory."""
-    (tmp_path / "main.py").write_text(
-        "def add(a: int, b: int) -> int:\n    return a + b\n"
-    )
+    (tmp_path / "main.py").write_text("def add(a: int, b: int) -> int:\n    return a + b\n")
     (tmp_path / "utils.py").write_text(
         "def greet(name: str) -> str:\n    return f'Hello, {name}'\n"
     )

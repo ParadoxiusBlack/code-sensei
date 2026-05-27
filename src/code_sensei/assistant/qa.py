@@ -16,9 +16,9 @@ the LLM as context, following a RAG pattern.
 from __future__ import annotations
 
 import logging
-from time import perf_counter
+from collections.abc import Iterator
 from dataclasses import dataclass, field
-from typing import Iterator
+from time import perf_counter
 
 from ..retrieval.retriever import RetrievalResult, Retriever
 from ._base import _BaseAssistant
@@ -206,7 +206,9 @@ class CodeQA(_BaseAssistant):
         answer = "".join(stream)
         retrieval_ms = 0.0
         maybe_metrics = getattr(self.retriever, "last_metrics", None)
-        maybe_total_ms = getattr(maybe_metrics, "total_ms", None) if maybe_metrics is not None else None
+        maybe_total_ms = (
+            getattr(maybe_metrics, "total_ms", None) if maybe_metrics is not None else None
+        )
         if isinstance(maybe_total_ms, (int, float)):
             retrieval_ms = float(maybe_total_ms)
         total_ms = (perf_counter() - started) * 1000.0

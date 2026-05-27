@@ -17,9 +17,9 @@ Design notes
 from __future__ import annotations
 
 import logging
+from collections.abc import Generator, Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Generator, Iterable
 
 import chardet
 

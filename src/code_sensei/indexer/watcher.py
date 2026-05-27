@@ -17,9 +17,8 @@ Design notes
 from __future__ import annotations
 
 import logging
-import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 try:
     from config.settings import DEFAULT_SOURCE_EXTENSIONS
@@ -69,12 +68,9 @@ class CodebaseWatcher:
     def start(self) -> None:
         """Start the file-system observer in a background thread."""
         try:
-            from watchdog.events import FileSystemEventHandler
             from watchdog.observers import Observer
 
-            handler = _ChangeHandler(
-                on_change=self.on_change, extensions=self.extensions
-            )
+            handler = _ChangeHandler(on_change=self.on_change, extensions=self.extensions)
             observer = Observer()
             observer.schedule(handler, str(self.root), recursive=self.recursive)
             observer.start()
@@ -94,7 +90,7 @@ class CodebaseWatcher:
             self._observer = None
             logger.info("CodebaseWatcher stopped.")
 
-    def __enter__(self) -> "CodebaseWatcher":
+    def __enter__(self) -> CodebaseWatcher:
         self.start()
         return self
 

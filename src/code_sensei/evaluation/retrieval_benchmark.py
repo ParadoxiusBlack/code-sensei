@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import PurePath
 from time import perf_counter
 
-from code_sensei.retrieval.retriever import RetrievalResult, Retriever
+from code_sensei.retrieval.retriever import Retriever
 
 
 def _normalize_source_path(path: str) -> str:
@@ -18,9 +18,8 @@ def _source_matches(returned_source: str, expected_source: str) -> bool:
     """Treat absolute indexed paths as matches for relative benchmark paths."""
     normalized_returned = _normalize_source_path(returned_source)
     normalized_expected = _normalize_source_path(expected_source)
-    return (
-        normalized_returned == normalized_expected
-        or normalized_returned.endswith(f"/{normalized_expected}")
+    return normalized_returned == normalized_expected or normalized_returned.endswith(
+        f"/{normalized_expected}"
     )
 
 

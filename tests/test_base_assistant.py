@@ -45,10 +45,12 @@ def test_invoke_stream_yields_string_chunks():
 
 def test_invoke_stream_yields_message_chunks():
     mock_llm = SimpleNamespace(
-        stream=lambda _messages: iter([
-            SimpleNamespace(content="a"),
-            SimpleNamespace(content="b"),
-        ])
+        stream=lambda _messages: iter(
+            [
+                SimpleNamespace(content="a"),
+                SimpleNamespace(content="b"),
+            ]
+        )
     )
     assistant = _make_assistant_with_llm(mock_llm)
 

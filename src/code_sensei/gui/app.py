@@ -16,9 +16,9 @@ from __future__ import annotations
 
 import re
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
 
 from code_sensei.assistant.qa import CodeQA
 from code_sensei.indexer.chunker import Chunker
@@ -56,10 +56,39 @@ def _is_editable_text_file(path: Path, max_size_bytes: int = 2_000_000) -> bool:
         return False
     # Conservative list for source/doc/config text files.
     editable_exts = {
-        ".py", ".js", ".ts", ".jsx", ".tsx", ".java", ".kt", ".go", ".rb", ".rs",
-        ".c", ".cpp", ".h", ".hpp", ".cs", ".php", ".swift", ".scala", ".sh", ".bash",
-        ".yaml", ".yml", ".toml", ".json", ".md", ".rst", ".txt", ".ini", ".cfg",
-        ".html", ".css", ".sql", ".xml",
+        ".py",
+        ".js",
+        ".ts",
+        ".jsx",
+        ".tsx",
+        ".java",
+        ".kt",
+        ".go",
+        ".rb",
+        ".rs",
+        ".c",
+        ".cpp",
+        ".h",
+        ".hpp",
+        ".cs",
+        ".php",
+        ".swift",
+        ".scala",
+        ".sh",
+        ".bash",
+        ".yaml",
+        ".yml",
+        ".toml",
+        ".json",
+        ".md",
+        ".rst",
+        ".txt",
+        ".ini",
+        ".cfg",
+        ".html",
+        ".css",
+        ".sql",
+        ".xml",
     }
     return path.suffix.lower() in editable_exts
 
@@ -85,9 +114,9 @@ def _annotate_file_with_chunks(
 ) -> str:
     """
     Annotate file content with chunk boundary markers and scores.
-    
+
     Shows visual indicators for chunk boundaries and optionally displays relevance scores.
-    
+
     Args:
         file_content: Full file text
         chunk_ranges: List of (start_char, end_char) tuples for each chunk
@@ -96,26 +125,27 @@ def _annotate_file_with_chunks(
     """
     if not chunk_ranges:
         return file_content
-    
+
     # Sort ranges for processing
     sorted_ranges = sorted(set(chunk_ranges))
-    
+
     # Build annotated version with line numbers and chunk indicators
     lines = file_content.split("\n")
     char_pos = 0
     annotated_lines = []
-    chunk_index = 0
-    current_chunk_id = None
-    
     for line_num, line in enumerate(lines, 1):
         line_end = char_pos + len(line) + 1  # +1 for newline
-        
+
         # Check which chunks contain this line
         chunks_at_line = []
         for i, (start, end) in enumerate(sorted_ranges):
-            if start <= char_pos < end or start < line_end <= end or (start < char_pos and line_end <= end):
+            if (
+                start <= char_pos < end
+                or start < line_end <= end
+                or (start < char_pos and line_end <= end)
+            ):
                 chunks_at_line.append(i)
-        
+
         # Add line number and chunk indicators
         indicator = ""
         if chunks_at_line:
@@ -124,7 +154,7 @@ def _annotate_file_with_chunks(
                 or current_chunk_range[0] < line_end <= current_chunk_range[1]
             )
             marker = "▶" if is_current else "│"
-            
+
             # Build chunk marker with optional scores
             chunk_markers = []
             for chunk_idx in chunks_at_line:
@@ -132,28 +162,29 @@ def _annotate_file_with_chunks(
                     score = chunk_scores[chunk_idx]
                     chunk_markers.append(f"{chunk_idx+1}|{score:.2f}")
                 else:
-                    chunk_markers.append(str(chunk_idx+1))
-            
+                    chunk_markers.append(str(chunk_idx + 1))
+
             chunk_nums = f"[{','.join(chunk_markers)}]"
             indicator = f" {marker} CHUNK{chunk_nums}"
-        
+
         annotated_lines.append(f"{line_num:4d} | {line}{indicator}")
         char_pos = line_end
-    
+
     # Add header with legend
     legend_score_line = (
-        "│ [1|0.87] = Chunk 1 with relevance score 0.87                │\n" if chunk_scores
+        "│ [1|0.87] = Chunk 1 with relevance score 0.87                │\n"
+        if chunk_scores
         else "│ [1] = Chunk index                                               │\n"
     )
-    
+
     header = (
         "┌─ FULL FILE VIEW WITH CHUNK INDICATORS ─────────────────────┐\n"
         "│ │   = Line is part of a chunk retrieved by LLM             │\n"
         "│ ▶   = Line is in the CURRENT chunk being viewed            │\n"
-        + legend_score_line +
-        "└────────────────────────────────────────────────────────────┘\n\n"
+        + legend_score_line
+        + "└────────────────────────────────────────────────────────────┘\n\n"
     )
-    
+
     return header + "\n".join(annotated_lines)
 
 
@@ -230,8 +261,8 @@ def run_gui(project_dir: str = ".", top_k: int = 8, use_llm: bool = True) -> int
     Returns process exit code.
     """
     try:
-        from PyQt6.QtCore import QObject, QThread, Qt, pyqtSignal, QSize
-        from PyQt6.QtGui import QFont, QFileSystemModel, QTextCursor, QColor, QPainter
+        from PyQt6.QtCore import QObject, QSize, Qt, QThread, pyqtSignal
+        from PyQt6.QtGui import QColor, QFileSystemModel, QFont, QPainter, QTextCursor
         from PyQt6.QtWidgets import (
             QApplication,
             QCheckBox,
@@ -244,8 +275,8 @@ def run_gui(project_dir: str = ".", top_k: int = 8, use_llm: bool = True) -> int
             QListWidgetItem,
             QMainWindow,
             QMessageBox,
-            QPushButton,
             QPlainTextEdit,
+            QPushButton,
             QSplitter,
             QTabWidget,
             QTextEdit,
@@ -255,34 +286,34 @@ def run_gui(project_dir: str = ".", top_k: int = 8, use_llm: bool = True) -> int
         )
     except Exception as exc:
         raise RuntimeError(
-            "PyQt6 GUI imports failed. Install with: pip install PyQt6. "
-            f"Original error: {exc}"
+            "PyQt6 GUI imports failed. Install with: pip install PyQt6. " f"Original error: {exc}"
         ) from exc
 
     class ClickableCodeView(QPlainTextEdit):
         """QPlainTextEdit with clickable chunk markers."""
+
         chunk_clicked = pyqtSignal(int)  # Emits chunk index when clicked
         chunk_ctrl_clicked = pyqtSignal(int)  # Emits chunk index when Ctrl+clicked
-        
+
         def __init__(self, parent=None):
             super().__init__(parent)
             self.chunk_ranges = {}  # {chunk_index: (start_char, end_char)}
             self.current_selection = None
-        
+
         def set_chunk_ranges(self, chunk_ranges):
             """Store chunk index to range mapping."""
             self.chunk_ranges = chunk_ranges
-        
+
         def mousePressEvent(self, event):
             """Detect clicks on chunk markers like [1], [2], etc."""
             cursor = self.cursorForPosition(event.pos())
             block = cursor.block()
             text = block.text()
-            
+
             # Find chunk marker at cursor position
             col = cursor.positionInBlock()
             chunk_idx = self._extract_chunk_at_position(text, col)
-            
+
             if chunk_idx is not None:
                 # Check if Ctrl is pressed for multi-select comparison
                 if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
@@ -291,29 +322,29 @@ def run_gui(project_dir: str = ".", top_k: int = 8, use_llm: bool = True) -> int
                     self.chunk_clicked.emit(chunk_idx)
                 event.accept()
                 return
-            
+
             super().mousePressEvent(event)
-        
+
         def _extract_chunk_at_position(self, line_text: str, col: int) -> int | None:
             """Extract chunk index from text at column, e.g., [1], [1|0.87], or [1,2|0.85]."""
             # Find all chunk markers in the line (supports optional scores)
-            for match in re.finditer(r'\[(\d+(?:\|[\d.]+)?(?:,\d+(?:\|[\d.]+)?)*)\]', line_text):
+            for match in re.finditer(r"\[(\d+(?:\|[\d.]+)?(?:,\d+(?:\|[\d.]+)?)*)\]", line_text):
                 if match.start() <= col <= match.end():
                     # Clicked on a chunk marker, extract first index (strip score if present)
                     content = match.group(1)
-                    first_chunk = content.split(',')[0]  # Get first chunk marker
-                    chunk_num = first_chunk.split('|')[0]  # Extract number before score
+                    first_chunk = content.split(",")[0]  # Get first chunk marker
+                    chunk_num = first_chunk.split("|")[0]  # Extract number before score
                     return int(chunk_num) - 1  # Convert to 0-based
-            
+
             return None
-        
+
         def scroll_to_chunk(self, start_char: int, end_char: int) -> None:
             """Scroll to display the chunk."""
             cursor = self.textCursor()
             cursor.setPosition(start_char)
             self.setTextCursor(cursor)
             self.ensureCursorVisible()
-        
+
         def highlight_chunk(self, start_char: int, end_char: int) -> None:
             """Highlight all lines in the chunk."""
             cursor = self.textCursor()
@@ -323,8 +354,9 @@ def run_gui(project_dir: str = ".", top_k: int = 8, use_llm: bool = True) -> int
 
     class ChunkMinimap(QWidget):
         """Visual minimap of chunk positions and density in the file."""
+
         chunk_clicked = pyqtSignal(int)  # Emits chunk index when minimap chunk is clicked
-        
+
         def __init__(self, parent=None):
             super().__init__(parent)
             self.setFixedWidth(40)
@@ -333,50 +365,50 @@ def run_gui(project_dir: str = ".", top_k: int = 8, use_llm: bool = True) -> int
             self.file_size = 1  # Total file characters
             self.current_chunk_range = None
             self.selected_chunks_for_diff = []
-        
+
         def set_data(self, chunk_ranges: dict, chunk_scores: dict, file_size: int):
             """Update minimap with chunk data."""
             self.chunk_ranges = chunk_ranges
             self.chunk_scores = chunk_scores
             self.file_size = max(1, file_size)  # Avoid division by zero
             self.update()  # Trigger repaint
-        
+
         def set_current_chunk(self, chunk_range: tuple[int, int] | None):
             """Highlight the currently selected chunk."""
             self.current_chunk_range = chunk_range
             self.update()
-        
+
         def set_selected_for_diff(self, selected: list[int]):
             """Set chunks selected for diff comparison."""
             self.selected_chunks_for_diff = selected
             self.update()
-        
+
         def sizeHint(self) -> QSize:
             """Preferred size."""
             return QSize(40, 400)
-        
+
         def paintEvent(self, event):
             """Draw the minimap."""
             painter = QPainter(self)
             painter.fillRect(self.rect(), QColor(240, 240, 240))  # Light gray background
             painter.drawRect(0, 0, self.width() - 1, self.height() - 1)  # Border
-            
+
             if not self.chunk_ranges or self.file_size <= 0:
                 painter.end()
                 return
-            
+
             # Draw each chunk as a colored rectangle
             usable_height = self.height() - 4
-            
+
             for chunk_idx, (start_char, end_char) in self.chunk_ranges.items():
                 # Calculate position and height proportional to file size
                 chunk_start_ratio = start_char / self.file_size
                 chunk_end_ratio = end_char / self.file_size
-                
+
                 y_start = int(2 + chunk_start_ratio * usable_height)
                 y_end = int(2 + chunk_end_ratio * usable_height)
                 height = max(1, y_end - y_start)
-                
+
                 # Choose color based on state
                 if chunk_idx in self.selected_chunks_for_diff:
                     # Orange for diff-selected chunks
@@ -391,22 +423,22 @@ def run_gui(project_dir: str = ".", top_k: int = 8, use_llm: bool = True) -> int
                     score = self.chunk_scores.get(chunk_idx, 0.5)
                     intensity = int(100 + score * 155)  # 100-255 based on score
                     color = QColor(50, 100, intensity)
-                
+
                 # Draw chunk rectangle
                 painter.fillRect(2, y_start, self.width() - 4, height, color)
-            
+
             painter.end()
-        
+
         def mousePressEvent(self, event):
             """Allow clicking on minimap to jump to chunk."""
             if not self.chunk_ranges or self.file_size <= 0:
                 return
-            
+
             # Calculate which chunk was clicked
             usable_height = self.height() - 4
             click_ratio = (event.pos().y() - 2) / usable_height if usable_height > 0 else 0
             click_char = int(click_ratio * self.file_size)
-            
+
             # Find chunk at clicked position
             for chunk_idx, (start_char, end_char) in self.chunk_ranges.items():
                 if start_char <= click_char < end_char:
@@ -415,35 +447,36 @@ def run_gui(project_dir: str = ".", top_k: int = 8, use_llm: bool = True) -> int
 
     class DiffDialog(QDialog):
         """Dialog for displaying diff between two chunks."""
+
         def __init__(self, parent, title: str, diff_text: str, content1: str, content2: str):
             super().__init__(parent)
             self.setWindowTitle(title)
             self.resize(1000, 600)
-            
+
             layout = QVBoxLayout()
-            
+
             # Info label
-            info_label = QLabel(f"Showing unified diff of code changes")
+            info_label = QLabel("Showing unified diff of code changes")
             layout.addWidget(info_label)
-            
+
             # Diff viewer
             diff_view = QPlainTextEdit()
             diff_view.setReadOnly(True)
             diff_view.setFont(QFont("Courier", 9))
-            
+
             # Color the diff output for better readability
             if diff_text:
                 diff_view.setPlainText(diff_text)
             else:
                 diff_view.setPlainText("No differences found between chunks.")
-            
+
             layout.addWidget(diff_view)
-            
+
             # Close button
             close_btn = QPushButton("Close")
             close_btn.clicked.connect(self.accept)
             layout.addWidget(close_btn)
-            
+
             self.setLayout(layout)
 
     class QueryWorker(QObject):
@@ -480,7 +513,9 @@ def run_gui(project_dir: str = ".", top_k: int = 8, use_llm: bool = True) -> int
 
         def run(self) -> None:
             try:
-                total_files, total_chunks = _index_project(self.root, progress_cb=self.progress.emit)
+                total_files, total_chunks = _index_project(
+                    self.root, progress_cb=self.progress.emit
+                )
                 self.finished.emit(
                     IndexResult(root=self.root, total_files=total_files, total_chunks=total_chunks)
                 )
@@ -501,19 +536,19 @@ def run_gui(project_dir: str = ".", top_k: int = 8, use_llm: bool = True) -> int
             self._index_worker: IndexWorker | None = None
 
             self._current_edit_file: Path | None = None
-            
+
             # Chunk tracking for clickable markers
             self._chunk_index_map = {}  # {chunk_index: (start_char, end_char)}
             self._current_chunk_selection = None
-            
+
             # Chunk diff comparison tracking
             self._selected_chunks_for_diff = []  # List of max 2 chunk indices for comparison
             self._chunk_content_map = {}  # {chunk_index: chunk_content}
-            
+
             # Track current source for export
             self._current_source_path: str | None = None
             self._current_display_content: str = ""  # Full displayed text including header
-            
+
             self._build_ui()
             self._set_project_root(self.root)
             self._refresh_project_status()
@@ -578,7 +613,7 @@ def run_gui(project_dir: str = ".", top_k: int = 8, use_llm: bool = True) -> int
             retrieval_layout.addWidget(self.sources_list)
 
             retrieval_layout.addWidget(QLabel("Code Viewer"))
-            
+
             # Code viewer with minimap sidebar
             code_viewer_row = QHBoxLayout()
             self.code_view = ClickableCodeView()
@@ -588,13 +623,13 @@ def run_gui(project_dir: str = ".", top_k: int = 8, use_llm: bool = True) -> int
             self.code_view.chunk_clicked.connect(self._on_chunk_clicked)
             self.code_view.chunk_ctrl_clicked.connect(self._on_chunk_ctrl_clicked)
             code_viewer_row.addWidget(self.code_view, stretch=1)
-            
+
             self.minimap = ChunkMinimap()
             self.minimap.chunk_clicked.connect(self._on_chunk_clicked)
             code_viewer_row.addWidget(self.minimap)
-            
+
             retrieval_layout.addLayout(code_viewer_row)
-            
+
             # Compare chunks button and export button
             compare_row = QHBoxLayout()
             self.compare_button = QPushButton("Compare Selected Chunks (Ctrl+Click 2)")
@@ -607,7 +642,7 @@ def run_gui(project_dir: str = ".", top_k: int = 8, use_llm: bool = True) -> int
             compare_row.addWidget(self.compare_button)
             compare_row.addWidget(self.export_button)
             retrieval_layout.addLayout(compare_row)
-            
+
             right_tabs.addTab(retrieval_tab, "Retrieved Source")
 
             # Project files tab
@@ -680,9 +715,7 @@ def run_gui(project_dir: str = ".", top_k: int = 8, use_llm: bool = True) -> int
             except Exception:
                 indexed_chunks = 0
 
-            self.project_label.setText(
-                f"Project: {self.root}  |  Indexed chunks: {indexed_chunks}"
-            )
+            self.project_label.setText(f"Project: {self.root}  |  Indexed chunks: {indexed_chunks}")
             self.setWindowTitle(f"CodeSensei GUI — {self.root}")
 
         def _append_status(self, text: str) -> None:
@@ -745,10 +778,10 @@ def run_gui(project_dir: str = ".", top_k: int = 8, use_llm: bool = True) -> int
                 return
 
             src_path = self.sources_list.item(row).text()
-            
+
             # Find ALL chunks from this file in the retrieval results
             chunks_from_file = [r for r in self._latest_results if r.source_path == src_path]
-            
+
             if not chunks_from_file:
                 # Fallback: show file if no chunks available
                 content = _read_full_file(src_path, base_dir=self.root)
@@ -756,15 +789,15 @@ def run_gui(project_dir: str = ".", top_k: int = 8, use_llm: bool = True) -> int
                 self._chunk_index_map = {}
                 self.code_view.set_chunk_ranges({})
                 return
-            
+
             # Extract char ranges and scores from chunks
             chunk_ranges = []
             chunk_scores = {}
             first_chunk = chunks_from_file[0]
-            
+
             # Read full file once for extracting chunk contents
             file_content = _read_full_file(src_path, base_dir=self.root)
-            
+
             # Build chunk content map for diff comparison
             self._chunk_content_map = {}
             for idx, chunk in enumerate(chunks_from_file):
@@ -773,37 +806,34 @@ def run_gui(project_dir: str = ".", top_k: int = 8, use_llm: bool = True) -> int
                     end_char = chunk.metadata["end_char"]
                     chunk_ranges.append((start_char, end_char))
                     chunk_scores[idx] = chunk.score
-                    
+
                     # Extract chunk content for diff comparison
                     self._chunk_content_map[idx] = file_content[start_char:end_char]
-            
+
             # Build chunk index map for clickable markers
             self._chunk_index_map = {}
             for idx, chunk_range in enumerate(chunk_ranges):
                 self._chunk_index_map[idx] = chunk_range
             self.code_view.set_chunk_ranges(self._chunk_index_map)
-            
+
             # Use current chunk selection if available, otherwise use first chunk
             current_range = self._current_chunk_selection or (
                 (first_chunk.metadata.get("start_char"), first_chunk.metadata.get("end_char"))
                 if "start_char" in first_chunk.metadata and "end_char" in first_chunk.metadata
                 else None
             )
-            
+
             if chunk_ranges:
                 annotated_content = _annotate_file_with_chunks(
-                    file_content,
-                    chunk_ranges,
-                    current_range,
-                    chunk_scores
+                    file_content, chunk_ranges, current_range, chunk_scores
                 )
             else:
                 annotated_content = file_content
-            
+
             # Build comprehensive header
             num_chunks = len(chunks_from_file)
             avg_score = sum(c.score for c in chunks_from_file) / len(chunks_from_file)
-            
+
             header = (
                 f"╔════════════════════════════════════════════════════════════╗\n"
                 f"║  File: {src_path}\n"
@@ -812,15 +842,15 @@ def run_gui(project_dir: str = ".", top_k: int = 8, use_llm: bool = True) -> int
                 f"║  ✓ Showing FULL file with chunk indicators (not truncated)\n"
                 f"╚════════════════════════════════════════════════════════════╝\n\n"
             )
-            
+
             full_display = header + annotated_content
             self.code_view.setPlainText(full_display)
-            
+
             # Store current source for export
             self._current_source_path = src_path
             self._current_display_content = full_display
             self.export_button.setEnabled(True)
-            
+
             # Update minimap with chunk data
             self.minimap.set_data(self._chunk_index_map, chunk_scores, len(file_content))
             if current_range:
@@ -831,14 +861,14 @@ def run_gui(project_dir: str = ".", top_k: int = 8, use_llm: bool = True) -> int
             """Handle click on a chunk marker [1], [2], etc."""
             if chunk_index not in self._chunk_index_map:
                 return
-            
+
             start_char, end_char = self._chunk_index_map[chunk_index]
             self._current_chunk_selection = (start_char, end_char)
-            
+
             # Scroll to and highlight the chunk
             self.code_view.scroll_to_chunk(start_char, end_char)
             self.code_view.highlight_chunk(start_char, end_char)
-            
+
             # Refresh display with updated current chunk marker
             if self.sources_list.currentRow() >= 0:
                 self._on_source_selected(self.sources_list.currentRow())
@@ -847,7 +877,7 @@ def run_gui(project_dir: str = ".", top_k: int = 8, use_llm: bool = True) -> int
             """Handle Ctrl+click on a chunk marker for diff comparison."""
             if chunk_index not in self._chunk_content_map:
                 return
-            
+
             # Toggle selection (add or remove)
             if chunk_index in self._selected_chunks_for_diff:
                 self._selected_chunks_for_diff.remove(chunk_index)
@@ -856,42 +886,47 @@ def run_gui(project_dir: str = ".", top_k: int = 8, use_llm: bool = True) -> int
                 if len(self._selected_chunks_for_diff) >= 2:
                     self._selected_chunks_for_diff.pop(0)
                 self._selected_chunks_for_diff.append(chunk_index)
-            
+
             # Enable compare button if 2 chunks selected
             self.compare_button.setEnabled(len(self._selected_chunks_for_diff) == 2)
-            
+
             # Update minimap to show selected chunks
             self.minimap.set_selected_for_diff(self._selected_chunks_for_diff)
 
         def _on_compare_chunks(self) -> None:
             """Show diff of the two selected chunks."""
             if len(self._selected_chunks_for_diff) != 2:
-                QMessageBox.warning(self, "Compare Chunks", "Please select exactly 2 chunks (Ctrl+Click).")
+                QMessageBox.warning(
+                    self, "Compare Chunks", "Please select exactly 2 chunks (Ctrl+Click)."
+                )
                 return
-            
+
             chunk1_idx, chunk2_idx = self._selected_chunks_for_diff
             content1 = self._chunk_content_map.get(chunk1_idx, "")
             content2 = self._chunk_content_map.get(chunk2_idx, "")
-            
+
             # Generate unified diff
             import difflib
-            diff_lines = list(difflib.unified_diff(
-                content1.splitlines(keepends=True),
-                content2.splitlines(keepends=True),
-                fromfile=f"Chunk {chunk1_idx + 1}",
-                tofile=f"Chunk {chunk2_idx + 1}",
-                lineterm=""
-            ))
-            
+
+            diff_lines = list(
+                difflib.unified_diff(
+                    content1.splitlines(keepends=True),
+                    content2.splitlines(keepends=True),
+                    fromfile=f"Chunk {chunk1_idx + 1}",
+                    tofile=f"Chunk {chunk2_idx + 1}",
+                    lineterm="",
+                )
+            )
+
             # Create diff view dialog
             diff_text = "".join(diff_lines)
-            
+
             diff_dialog = DiffDialog(
                 self,
                 f"Comparing Chunk {chunk1_idx + 1} vs Chunk {chunk2_idx + 1}",
                 diff_text,
                 content1,
-                content2
+                content2,
             )
             diff_dialog.exec()
 
@@ -900,40 +935,34 @@ def run_gui(project_dir: str = ".", top_k: int = 8, use_llm: bool = True) -> int
             if not self._current_source_path or not self._current_display_content:
                 QMessageBox.warning(self, "Export", "No source file selected to export.")
                 return
-            
+
             # Get suggested filename with .annotated extension
             src_name = Path(self._current_source_path).name
             name_without_ext = Path(src_name).stem
             ext = Path(src_name).suffix
             suggested_filename = f"{name_without_ext}.annotated{ext}"
-            
+
             # Open save dialog
             file_path, _ = QFileDialog.getSaveFileName(
                 self,
                 "Export Annotated File",
                 suggested_filename,
-                "All Files (*);;Text Files (*.txt);;Python Files (*.py);;JavaScript Files (*.js)"
+                "All Files (*);;Text Files (*.txt);;Python Files (*.py);;JavaScript Files (*.js)",
             )
-            
+
             if not file_path:
                 return
-            
+
             try:
                 # Write the annotated content to file
                 with open(file_path, "w", encoding="utf-8") as f:
                     f.write(self._current_display_content)
-                
+
                 QMessageBox.information(
-                    self,
-                    "Export Successful",
-                    f"Annotated file saved to:\n{file_path}"
+                    self, "Export Successful", f"Annotated file saved to:\n{file_path}"
                 )
             except Exception as e:
-                QMessageBox.critical(
-                    self,
-                    "Export Error",
-                    f"Failed to export file:\n{str(e)}"
-                )
+                QMessageBox.critical(self, "Export Error", f"Failed to export file:\n{str(e)}")
 
         def _on_select_project(self) -> None:
             selected = QFileDialog.getExistingDirectory(
@@ -987,8 +1016,7 @@ def run_gui(project_dir: str = ".", top_k: int = 8, use_llm: bool = True) -> int
             self._refresh_project_status()
 
             self.answer_view.append(
-                "[Index complete] "
-                f"Files: {result.total_files}, chunks: {result.total_chunks}\n"
+                "[Index complete] " f"Files: {result.total_files}, chunks: {result.total_chunks}\n"
             )
 
         def _on_index_failed(self, error_message: str) -> None:
@@ -1052,11 +1080,11 @@ def run_gui(project_dir: str = ".", top_k: int = 8, use_llm: bool = True) -> int
 
 def main_gui() -> int:
     """Entry point for the GUI application when installed as a package.
-    
+
     Launches the GUI from the current working directory or opens a folder picker.
     """
     import os
-    
+
     # Try to use current directory if it's a code project, otherwise start with home
     project_dir = os.getcwd()
     return run_gui(project_dir=project_dir, top_k=8, use_llm=True)

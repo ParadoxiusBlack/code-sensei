@@ -21,8 +21,7 @@ class OllamaConnectionError(CodeSenseiError):
 
     def __init__(self, base_url: str = "http://localhost:11434") -> None:
         super().__init__(
-            f"Cannot connect to Ollama at {base_url}. "
-            "Make sure the Ollama server is running."
+            f"Cannot connect to Ollama at {base_url}. " "Make sure the Ollama server is running."
         )
         self.base_url = base_url
 
@@ -53,13 +52,13 @@ class VectorStoreDimensionError(CodeSenseiError):
         "Re-index the project:  code-sensei index <project-dir>"
     )
 
-    def __init__(self, collection: str, stored_dim: int | None = None, new_dim: int | None = None) -> None:
+    def __init__(
+        self, collection: str, stored_dim: int | None = None, new_dim: int | None = None
+    ) -> None:
         detail = (
             f" (stored {stored_dim}-d, current model produces {new_dim}-d)"
             if stored_dim and new_dim
             else ""
         )
-        super().__init__(
-            f"Embedding dimension mismatch in collection '{collection}'{detail}."
-        )
+        super().__init__(f"Embedding dimension mismatch in collection '{collection}'{detail}.")
         self.collection = collection

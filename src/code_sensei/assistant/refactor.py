@@ -198,18 +198,17 @@ class RefactorAdvisor(_BaseAssistant):
 
             # Check for location marker
             elif stripped.lower().startswith("location:"):
-                if current_location and current_problem_lines:
+                if current_location and current_problem_lines and current_severity:
                     # Save previous suggestion before starting new one
-                    if current_severity:
-                        suggestions.append(
-                            RefactorSuggestion(
-                                severity=current_severity,
-                                location=current_location,
-                                problem=" ".join(current_problem_lines),
-                                suggestion=" ".join(current_suggestion_lines),
-                            )
+                    suggestions.append(
+                        RefactorSuggestion(
+                            severity=current_severity,
+                            location=current_location,
+                            problem=" ".join(current_problem_lines),
+                            suggestion=" ".join(current_suggestion_lines),
                         )
-                current_location = stripped[len("location:"):].strip()
+                    )
+                current_location = stripped[len("location:") :].strip()
                 current_problem_lines = []
                 current_suggestion_lines = []
                 in_problem = True
@@ -219,18 +218,20 @@ class RefactorAdvisor(_BaseAssistant):
             elif stripped.lower().startswith("problem:"):
                 in_problem = True
                 in_suggestion = False
-                problem_text = stripped[len("problem:"):].strip()
+                problem_text = stripped[len("problem:") :].strip()
                 if problem_text:
                     current_problem_lines.append(problem_text)
 
             # Check for suggestion marker
-            elif stripped.lower().startswith("suggestion:") or stripped.lower().startswith("suggested fix:"):
+            elif stripped.lower().startswith("suggestion:") or stripped.lower().startswith(
+                "suggested fix:"
+            ):
                 in_suggestion = True
                 in_problem = False
                 suggestion_text = (
-                    stripped[len("suggestion:"):].strip()
+                    stripped[len("suggestion:") :].strip()
                     if stripped.lower().startswith("suggestion:")
-                    else stripped[len("suggested fix:"):].strip()
+                    else stripped[len("suggested fix:") :].strip()
                 )
                 if suggestion_text:
                     current_suggestion_lines.append(suggestion_text)

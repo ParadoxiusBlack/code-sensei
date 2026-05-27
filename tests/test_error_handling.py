@@ -9,8 +9,6 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from code_sensei.errors import (
     CodeSenseiError,
     EmbeddingModelError,
@@ -18,7 +16,6 @@ from code_sensei.errors import (
     OllamaConnectionError,
     VectorStoreDimensionError,
 )
-
 
 # ---------------------------------------------------------------------------
 # Typed exception tests
@@ -197,10 +194,9 @@ class TestCLIHelpers:
     def test_warn_panel_emits_output(self, capsys):
         from rich.console import Console
 
-        from code_sensei.cli import _warn_panel
-
         # Replace console temporarily with one that writes to stderr
         import code_sensei.cli as cli_module
+        from code_sensei.cli import _warn_panel
 
         original = cli_module.console
         cli_module.console = Console(highlight=False)
@@ -212,9 +208,8 @@ class TestCLIHelpers:
     def test_error_panel_emits_output(self):
         from rich.console import Console
 
-        from code_sensei.cli import _error_panel
-
         import code_sensei.cli as cli_module
+        from code_sensei.cli import _error_panel
 
         original = cli_module.console
         cli_module.console = Console(highlight=False)
@@ -234,9 +229,8 @@ class TestCLIHelpers:
     def test_check_llm_status_with_error_prints_panel(self):
         from rich.console import Console
 
-        from code_sensei.cli import _check_llm_status
-
         import code_sensei.cli as cli_module
+        from code_sensei.cli import _check_llm_status
 
         output_lines: list[str] = []
 
@@ -253,15 +247,13 @@ class TestCLIHelpers:
         finally:
             cli_module.console = original
 
-        combined = " ".join(output_lines)
         assert len(output_lines) > 0  # _check_llm_status printed something
 
     def test_check_embed_status_with_error(self):
         from rich.console import Console
 
-        from code_sensei.cli import _check_embed_status
-
         import code_sensei.cli as cli_module
+        from code_sensei.cli import _check_embed_status
 
         output_lines: list[str] = []
 
@@ -278,15 +270,13 @@ class TestCLIHelpers:
         finally:
             cli_module.console = original
 
-        combined = " ".join(output_lines)
         assert len(output_lines) > 0  # _check_embed_status printed something
 
     def test_handle_vector_store_error_dimension(self):
         from rich.console import Console
 
-        from code_sensei.cli import _handle_vector_store_error
-
         import code_sensei.cli as cli_module
+        from code_sensei.cli import _handle_vector_store_error
 
         output_lines: list[str] = []
 
@@ -304,5 +294,4 @@ class TestCLIHelpers:
         finally:
             cli_module.console = original
 
-        combined = " ".join(output_lines)
         assert len(output_lines) > 0  # _handle_vector_store_error printed something

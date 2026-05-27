@@ -18,8 +18,8 @@ Design notes
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Sequence
 
 from .chunker import Chunk
 
@@ -93,7 +93,7 @@ class Embedder:
             batch = list(chunks[i : i + self.batch_size])
             texts = [c.content for c in batch]
             vectors = self._embed_texts(texts)
-            for chunk, vector in zip(batch, vectors):
+            for chunk, vector in zip(batch, vectors, strict=False):
                 results.append(EmbeddedChunk(chunk=chunk, embedding=vector))
         return results
 
@@ -144,8 +144,7 @@ class Embedder:
                 self.embed_init_error = f"{model_err}  Hint: {model_err.hint}"
             else:
                 self.embed_init_error = (
-                    f"Could not load embedding model '{self.model}' "
-                    f"({self.provider}): {exc}"
+                    f"Could not load embedding model '{self.model}' " f"({self.provider}): {exc}"
                 )
             logger.warning(
                 "Could not load embedding model (%s). "

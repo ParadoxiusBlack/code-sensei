@@ -16,7 +16,7 @@ context string from ``RetrievalResult`` objects, and sensible defaults.
 from __future__ import annotations
 
 import logging
-from typing import Iterator, Sequence
+from collections.abc import Iterator, Sequence
 
 from ..errors import ModelNotFoundError, OllamaConnectionError
 from ..retrieval.retriever import RetrievalResult
@@ -24,15 +24,15 @@ from ..retrieval.retriever import RetrievalResult
 try:
     from config.settings import (
         CHAT_MODEL,
-        MAX_TOKENS,
-        TEMPERATURE,
         HYBRID_LLM_MODE,
+        MAX_CHARS_PER_CHUNK,
+        MAX_CHUNKS_PER_FILE,
+        MAX_CONTEXT_CHARS,
+        MAX_TOKENS,
         OLLAMA_BASE_URL,
         OLLAMA_MODEL,
         OPENAI_API_KEY,
-        MAX_CONTEXT_CHARS,
-        MAX_CHARS_PER_CHUNK,
-        MAX_CHUNKS_PER_FILE,
+        TEMPERATURE,
     )
 except ImportError:
     CHAT_MODEL = "gpt-4o"
@@ -88,14 +88,14 @@ class _BaseAssistant:
             if llm:
                 logger.info("Using local Ollama LLM (%s)", OLLAMA_MODEL)
                 return llm
-            
+
             # Fall back to OpenAI
             if OPENAI_API_KEY:
                 llm = self._try_openai()
                 if llm:
                     logger.info("Using OpenAI LLM (%s)", self.model)
                     return llm
-            
+
             # No LLM available — preserve the most helpful hint for the CLI.
             if not self.llm_init_error:
                 self.llm_init_error = (
