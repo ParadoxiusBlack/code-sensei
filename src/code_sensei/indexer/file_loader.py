@@ -32,7 +32,7 @@ except ImportError:
     _settings = None
 
 DEFAULT_SOURCE_EXTENSIONS: frozenset[str] = frozenset(
-    getattr(_settings, "DEFAULT_SOURCE_EXTENSIONS", {".py", ".js", ".ts", ".md"})
+    getattr(_settings, "DEFAULT_SOURCE_EXTENSIONS", frozenset({".py", ".js", ".ts", ".md"}))
 )
 DEFAULT_IGNORE_DIRS: frozenset[str] = frozenset(
     getattr(
