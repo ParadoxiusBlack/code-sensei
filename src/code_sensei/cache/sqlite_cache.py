@@ -7,6 +7,7 @@ import os
 import sqlite3
 import time
 from pathlib import Path
+from types import TracebackType
 from typing import Any
 
 
@@ -85,5 +86,10 @@ class SqliteCache:
     def __enter__(self) -> SqliteCache:
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         self.close()
