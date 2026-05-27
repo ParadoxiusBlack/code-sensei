@@ -56,6 +56,8 @@ chroma_db/
 *.sqlite3
 cache/
 .cache/
+!src/code_sensei/cache/
+!src/code_sensei/cache/*.py
 logs/
 *.log
 
