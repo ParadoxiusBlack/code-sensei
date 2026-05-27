@@ -18,6 +18,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 try:
     from config.settings import CHROMA_PERSIST_DIR, EMBEDDING_MODEL, EMBEDDING_PROVIDER
@@ -31,6 +32,8 @@ from ..indexer.embedder import EmbeddedChunk
 logger = logging.getLogger(__name__)
 
 _DEFAULT_COLLECTION = "code_sensei_default"
+ChromaClient = Any
+ChromaCollection = Any
 
 
 class VectorStore:
@@ -52,8 +55,8 @@ class VectorStore:
     ) -> None:
         self.collection_name = collection_name
         self.persist_dir = Path(persist_dir or CHROMA_PERSIST_DIR).resolve()
-        self._client = None
-        self._collection = None
+        self._client: ChromaClient | None = None
+        self._collection: ChromaCollection | None = None
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -64,8 +67,9 @@ class VectorStore:
         try:
             import chromadb
 
-            self._client = chromadb.PersistentClient(path=str(self.persist_dir))
-            self._collection = self._client.get_or_create_collection(
+            client = chromadb.PersistentClient(path=str(self.persist_dir))
+            self._client = client
+            self._collection = client.get_or_create_collection(
                 name=self.collection_name,
                 metadata={"hnsw:space": "cosine"},
             )

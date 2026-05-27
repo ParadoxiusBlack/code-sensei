@@ -19,19 +19,29 @@ from __future__ import annotations
 import logging
 from collections.abc import Generator, Iterable
 from dataclasses import dataclass, field
+from importlib import import_module
 from pathlib import Path
+from types import ModuleType
 
 import chardet
 
 # Allow the module to be imported standalone (outside the installed package).
 try:
-    from config.settings import DEFAULT_IGNORE_DIRS, DEFAULT_IGNORE_FILES, DEFAULT_SOURCE_EXTENSIONS
+    _settings: ModuleType | None = import_module("config.settings")
 except ImportError:
-    DEFAULT_SOURCE_EXTENSIONS: frozenset[str] = frozenset({".py", ".js", ".ts", ".md"})
-    DEFAULT_IGNORE_DIRS: frozenset[str] = frozenset(
-        {"__pycache__", ".git", "node_modules", ".venv", "venv"}
+    _settings = None
+
+DEFAULT_SOURCE_EXTENSIONS: frozenset[str] = frozenset(
+    getattr(_settings, "DEFAULT_SOURCE_EXTENSIONS", frozenset({".py", ".js", ".ts", ".md"}))
+)
+DEFAULT_IGNORE_DIRS: frozenset[str] = frozenset(
+    getattr(
+        _settings, "DEFAULT_IGNORE_DIRS", {"__pycache__", ".git", "node_modules", ".venv", "venv"}
     )
-    DEFAULT_IGNORE_FILES: frozenset[str] = frozenset()
+)
+DEFAULT_IGNORE_FILES: frozenset[str] = frozenset(
+    getattr(_settings, "DEFAULT_IGNORE_FILES", frozenset())
+)
 
 logger = logging.getLogger(__name__)
 
