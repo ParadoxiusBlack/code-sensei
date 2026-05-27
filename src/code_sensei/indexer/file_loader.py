@@ -25,13 +25,21 @@ import chardet
 
 # Allow the module to be imported standalone (outside the installed package).
 try:
-    from config.settings import DEFAULT_IGNORE_DIRS, DEFAULT_IGNORE_FILES, DEFAULT_SOURCE_EXTENSIONS
+    from config.settings import (
+        DEFAULT_IGNORE_DIRS as _DEFAULT_IGNORE_DIRS,
+        DEFAULT_IGNORE_FILES as _DEFAULT_IGNORE_FILES,
+        DEFAULT_SOURCE_EXTENSIONS as _DEFAULT_SOURCE_EXTENSIONS,
+    )
 except ImportError:
-    DEFAULT_SOURCE_EXTENSIONS: frozenset[str] = frozenset({".py", ".js", ".ts", ".md"})
-    DEFAULT_IGNORE_DIRS: frozenset[str] = frozenset(
+    _DEFAULT_SOURCE_EXTENSIONS: frozenset[str] = frozenset({".py", ".js", ".ts", ".md"})
+    _DEFAULT_IGNORE_DIRS: frozenset[str] = frozenset(
         {"__pycache__", ".git", "node_modules", ".venv", "venv"}
     )
-    DEFAULT_IGNORE_FILES: frozenset[str] = frozenset()
+    _DEFAULT_IGNORE_FILES: frozenset[str] = frozenset()
+
+DEFAULT_SOURCE_EXTENSIONS: frozenset[str] = frozenset(_DEFAULT_SOURCE_EXTENSIONS)
+DEFAULT_IGNORE_DIRS: frozenset[str] = frozenset(_DEFAULT_IGNORE_DIRS)
+DEFAULT_IGNORE_FILES: frozenset[str] = frozenset(_DEFAULT_IGNORE_FILES)
 
 logger = logging.getLogger(__name__)
 

@@ -538,12 +538,12 @@ def run_gui(project_dir: str = ".", top_k: int = 8, use_llm: bool = True) -> int
             self._current_edit_file: Path | None = None
 
             # Chunk tracking for clickable markers
-            self._chunk_index_map = {}  # {chunk_index: (start_char, end_char)}
-            self._current_chunk_selection = None
+            self._chunk_index_map: dict[int, tuple[int, int]] = {}
+            self._current_chunk_selection: tuple[int, int] | None = None
 
             # Chunk diff comparison tracking
-            self._selected_chunks_for_diff = []  # List of max 2 chunk indices for comparison
-            self._chunk_content_map = {}  # {chunk_index: chunk_content}
+            self._selected_chunks_for_diff: list[int] = []
+            self._chunk_content_map: dict[int, str] = {}
 
             # Track current source for export
             self._current_source_path: str | None = None
@@ -791,8 +791,8 @@ def run_gui(project_dir: str = ".", top_k: int = 8, use_llm: bool = True) -> int
                 return
 
             # Extract char ranges and scores from chunks
-            chunk_ranges = []
-            chunk_scores = {}
+            chunk_ranges: list[tuple[int, int]] = []
+            chunk_scores: dict[int, float] = {}
             first_chunk = chunks_from_file[0]
 
             # Read full file once for extracting chunk contents
@@ -801,9 +801,11 @@ def run_gui(project_dir: str = ".", top_k: int = 8, use_llm: bool = True) -> int
             # Build chunk content map for diff comparison
             self._chunk_content_map = {}
             for idx, chunk in enumerate(chunks_from_file):
-                if "start_char" in chunk.metadata and "end_char" in chunk.metadata:
-                    start_char = chunk.metadata["start_char"]
-                    end_char = chunk.metadata["end_char"]
+                start_value = chunk.metadata.get("start_char")
+                end_value = chunk.metadata.get("end_char")
+                if isinstance(start_value, int) and isinstance(end_value, int):
+                    start_char = start_value
+                    end_char = end_value
                     chunk_ranges.append((start_char, end_char))
                     chunk_scores[idx] = chunk.score
 
@@ -817,11 +819,12 @@ def run_gui(project_dir: str = ".", top_k: int = 8, use_llm: bool = True) -> int
             self.code_view.set_chunk_ranges(self._chunk_index_map)
 
             # Use current chunk selection if available, otherwise use first chunk
-            current_range = self._current_chunk_selection or (
-                (first_chunk.metadata.get("start_char"), first_chunk.metadata.get("end_char"))
-                if "start_char" in first_chunk.metadata and "end_char" in first_chunk.metadata
-                else None
-            )
+            current_range: tuple[int, int] | None = self._current_chunk_selection
+            if current_range is None:
+                first_start = first_chunk.metadata.get("start_char")
+                first_end = first_chunk.metadata.get("end_char")
+                if isinstance(first_start, int) and isinstance(first_end, int):
+                    current_range = (first_start, first_end)
 
             if chunk_ranges:
                 annotated_content = _annotate_file_with_chunks(

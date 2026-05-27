@@ -19,11 +19,41 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 try:
     from config.settings import DEFAULT_SOURCE_EXTENSIONS
 except ImportError:
     DEFAULT_SOURCE_EXTENSIONS = frozenset({".py", ".js", ".ts", ".md"})
+
+try:
+    from watchdog.events import FileSystemEvent, FileSystemEventHandler
+    from watchdog.observers import Observer
+    from watchdog.observers.api import BaseObserver
+except ImportError:
+    FileSystemEvent = Any
+
+    class FileSystemEventHandler:
+        """Fallback handler base when watchdog is unavailable."""
+
+    class BaseObserver:
+        """Fallback observer type for static typing when watchdog is unavailable."""
+
+        def schedule(
+            self, event_handler: FileSystemEventHandler, path: str, recursive: bool = False
+        ) -> None:
+            return None
+
+        def start(self) -> None:
+            return None
+
+        def stop(self) -> None:
+            return None
+
+        def join(self) -> None:
+            return None
+
+    Observer = None
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +89,7 @@ class CodebaseWatcher:
         self.on_change = on_change
         self.extensions = extensions or DEFAULT_SOURCE_EXTENSIONS
         self.recursive = recursive
-        self._observer = None
+        self._observer: BaseObserver | None = None
 
     # ------------------------------------------------------------------
     # Public API
@@ -67,20 +97,19 @@ class CodebaseWatcher:
 
     def start(self) -> None:
         """Start the file-system observer in a background thread."""
-        try:
-            from watchdog.observers import Observer
-
-            handler = _ChangeHandler(on_change=self.on_change, extensions=self.extensions)
-            observer = Observer()
-            observer.schedule(handler, str(self.root), recursive=self.recursive)
-            observer.start()
-            self._observer = observer
-            logger.info("CodebaseWatcher started on: %s", self.root)
-        except ImportError:
+        if Observer is None:
             logger.warning(
                 "watchdog is not installed; file-system watching is disabled. "
                 "Run `pip install watchdog` to enable."
             )
+            return
+
+        handler = _ChangeHandler(on_change=self.on_change, extensions=self.extensions)
+        observer = Observer()
+        observer.schedule(handler, str(self.root), recursive=self.recursive)
+        observer.start()
+        self._observer = observer
+        logger.info("CodebaseWatcher started on: %s", self.root)
 
     def stop(self) -> None:
         """Stop the background observer gracefully."""
@@ -103,39 +132,32 @@ class CodebaseWatcher:
 # ---------------------------------------------------------------------------
 
 
-class _ChangeHandler:
+class _ChangeHandler(FileSystemEventHandler):
     """
     Watchdog event handler that forwards relevant events to the callback.
 
-    Inherits from ``FileSystemEventHandler`` lazily so the class can be
-    defined even if ``watchdog`` is not installed.
+    Subclasses ``FileSystemEventHandler`` directly.
     """
 
     def __init__(self, on_change: ChangeCallback, extensions: frozenset[str]) -> None:
+        super().__init__()
         self.on_change = on_change
         self.extensions = extensions
-        # Lazily inherit if watchdog is available.
-        try:
-            from watchdog.events import FileSystemEventHandler
-
-            _ChangeHandler.__bases__ = (FileSystemEventHandler,)
-        except ImportError:
-            pass
 
     def _is_relevant(self, path: str) -> bool:
         return Path(path).suffix.lower() in self.extensions
 
-    def on_created(self, event) -> None:  # type: ignore[override]
+    def on_created(self, event: FileSystemEvent) -> None:
         if not event.is_directory and self._is_relevant(event.src_path):
             logger.debug("File created: %s", event.src_path)
             self.on_change("created", Path(event.src_path))
 
-    def on_modified(self, event) -> None:  # type: ignore[override]
+    def on_modified(self, event: FileSystemEvent) -> None:
         if not event.is_directory and self._is_relevant(event.src_path):
             logger.debug("File modified: %s", event.src_path)
             self.on_change("modified", Path(event.src_path))
 
-    def on_deleted(self, event) -> None:  # type: ignore[override]
+    def on_deleted(self, event: FileSystemEvent) -> None:
         if not event.is_directory and self._is_relevant(event.src_path):
             logger.debug("File deleted: %s", event.src_path)
             self.on_change("deleted", Path(event.src_path))
