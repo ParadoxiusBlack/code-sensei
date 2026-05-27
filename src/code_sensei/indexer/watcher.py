@@ -19,29 +19,26 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 try:
     from config.settings import DEFAULT_SOURCE_EXTENSIONS
 except ImportError:
     DEFAULT_SOURCE_EXTENSIONS = frozenset({".py", ".js", ".ts", ".md"})
 
-try:
+if TYPE_CHECKING:
     from watchdog.events import FileSystemEvent, FileSystemEventHandler
-    from watchdog.observers import Observer
     from watchdog.observers.api import BaseObserver
-except ImportError:
+else:
     FileSystemEvent = Any
 
     class FileSystemEventHandler:
         """Fallback handler base when watchdog is unavailable."""
 
     class BaseObserver:
-        """Fallback observer type for static typing when watchdog is unavailable."""
+        """Fallback observer type when watchdog is unavailable."""
 
-        def schedule(
-            self, event_handler: FileSystemEventHandler, path: str, recursive: bool = False
-        ) -> None:
+        def schedule(self, event_handler: Any, path: str, recursive: bool = False) -> None:
             return None
 
         def start(self) -> None:
@@ -53,7 +50,6 @@ except ImportError:
         def join(self) -> None:
             return None
 
-    Observer = None
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +93,9 @@ class CodebaseWatcher:
 
     def start(self) -> None:
         """Start the file-system observer in a background thread."""
-        if Observer is None:
+        try:
+            from watchdog.observers import Observer
+        except ImportError:
             logger.warning(
                 "watchdog is not installed; file-system watching is disabled. "
                 "Run `pip install watchdog` to enable."
@@ -105,7 +103,7 @@ class CodebaseWatcher:
             return
 
         handler = _ChangeHandler(on_change=self.on_change, extensions=self.extensions)
-        observer = Observer()
+        observer: BaseObserver = Observer()
         observer.schedule(handler, str(self.root), recursive=self.recursive)
         observer.start()
         self._observer = observer
@@ -132,32 +130,76 @@ class CodebaseWatcher:
 # ---------------------------------------------------------------------------
 
 
-class _ChangeHandler(FileSystemEventHandler):
-    """
-    Watchdog event handler that forwards relevant events to the callback.
+if TYPE_CHECKING:
 
-    Subclasses ``FileSystemEventHandler`` directly.
-    """
+    class _ChangeHandler(FileSystemEventHandler):
+        """Type-checking shape of the event handler."""
 
-    def __init__(self, on_change: ChangeCallback, extensions: frozenset[str]) -> None:
-        super().__init__()
-        self.on_change = on_change
-        self.extensions = extensions
+        def __init__(self, on_change: ChangeCallback, extensions: frozenset[str]) -> None:
+            super().__init__()
+            self.on_change = on_change
+            self.extensions = extensions
 
-    def _is_relevant(self, path: str) -> bool:
-        return Path(path).suffix.lower() in self.extensions
+        def _is_relevant(self, path: str) -> bool:
+            return Path(path).suffix.lower() in self.extensions
 
-    def on_created(self, event: FileSystemEvent) -> None:
-        if not event.is_directory and self._is_relevant(event.src_path):
-            logger.debug("File created: %s", event.src_path)
-            self.on_change("created", Path(event.src_path))
+        def _event_path(self, event: FileSystemEvent) -> str:
+            src_path = event.src_path
+            return src_path.decode() if isinstance(src_path, bytes) else src_path
 
-    def on_modified(self, event: FileSystemEvent) -> None:
-        if not event.is_directory and self._is_relevant(event.src_path):
-            logger.debug("File modified: %s", event.src_path)
-            self.on_change("modified", Path(event.src_path))
+        def on_created(self, event: FileSystemEvent) -> None:
+            src_path = self._event_path(event)
+            if not event.is_directory and self._is_relevant(src_path):
+                logger.debug("File created: %s", src_path)
+                self.on_change("created", Path(src_path))
 
-    def on_deleted(self, event: FileSystemEvent) -> None:
-        if not event.is_directory and self._is_relevant(event.src_path):
-            logger.debug("File deleted: %s", event.src_path)
-            self.on_change("deleted", Path(event.src_path))
+        def on_modified(self, event: FileSystemEvent) -> None:
+            src_path = self._event_path(event)
+            if not event.is_directory and self._is_relevant(src_path):
+                logger.debug("File modified: %s", src_path)
+                self.on_change("modified", Path(src_path))
+
+        def on_deleted(self, event: FileSystemEvent) -> None:
+            src_path = self._event_path(event)
+            if not event.is_directory and self._is_relevant(src_path):
+                logger.debug("File deleted: %s", src_path)
+                self.on_change("deleted", Path(src_path))
+
+else:
+    try:
+        from watchdog.events import FileSystemEventHandler as _RuntimeFileSystemEventHandler
+    except ImportError:
+        _RuntimeFileSystemEventHandler = FileSystemEventHandler
+
+    class _ChangeHandler(_RuntimeFileSystemEventHandler):
+        """Runtime event handler."""
+
+        def __init__(self, on_change: ChangeCallback, extensions: frozenset[str]) -> None:
+            super().__init__()
+            self.on_change = on_change
+            self.extensions = extensions
+
+        def _is_relevant(self, path: str) -> bool:
+            return Path(path).suffix.lower() in self.extensions
+
+        def _event_path(self, event: FileSystemEvent) -> str:
+            src_path = event.src_path
+            return src_path.decode() if isinstance(src_path, bytes) else src_path
+
+        def on_created(self, event: FileSystemEvent) -> None:
+            src_path = self._event_path(event)
+            if not event.is_directory and self._is_relevant(src_path):
+                logger.debug("File created: %s", src_path)
+                self.on_change("created", Path(src_path))
+
+        def on_modified(self, event: FileSystemEvent) -> None:
+            src_path = self._event_path(event)
+            if not event.is_directory and self._is_relevant(src_path):
+                logger.debug("File modified: %s", src_path)
+                self.on_change("modified", Path(src_path))
+
+        def on_deleted(self, event: FileSystemEvent) -> None:
+            src_path = self._event_path(event)
+            if not event.is_directory and self._is_relevant(src_path):
+                logger.debug("File deleted: %s", src_path)
+                self.on_change("deleted", Path(src_path))
