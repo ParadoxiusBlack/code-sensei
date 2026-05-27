@@ -16,8 +16,8 @@ Design notes
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
 
 try:
     from config.settings import CHROMA_PERSIST_DIR, EMBEDDING_MODEL, EMBEDDING_PROVIDER
@@ -26,7 +26,6 @@ except ImportError:
     EMBEDDING_MODEL = "nomic-embed-text"
     EMBEDDING_PROVIDER = "ollama"
 
-from ..indexer.chunker import Chunk
 from ..indexer.embedder import EmbeddedChunk
 
 logger = logging.getLogger(__name__)
@@ -169,7 +168,7 @@ class VectorStore:
     # Context manager support
     # ------------------------------------------------------------------
 
-    def __enter__(self) -> "VectorStore":
+    def __enter__(self) -> VectorStore:
         self.connect()
         return self
 

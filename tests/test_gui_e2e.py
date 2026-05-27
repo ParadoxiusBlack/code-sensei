@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-from types import SimpleNamespace
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
-
 
 pytest.importorskip("PyQt6")
 
@@ -39,7 +38,7 @@ def test_run_gui_full_workflow(monkeypatch, tmp_path: Path):
     monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
 
     from PyQt6.QtCore import QThread
-    from PyQt6.QtWidgets import QApplication, QFileDialog, QDialog, QMainWindow, QMessageBox
+    from PyQt6.QtWidgets import QApplication, QDialog, QFileDialog, QMainWindow, QMessageBox
 
     from code_sensei.assistant.qa import QAResponse
     from code_sensei.gui import app as gui_app
@@ -48,10 +47,7 @@ def test_run_gui_full_workflow(monkeypatch, tmp_path: Path):
     source_file = tmp_path / "src" / "sample.py"
     source_file.parent.mkdir(parents=True)
     source_text = (
-        "def first():\n"
-        "    return 'first'\n\n"
-        "def second():\n"
-        "    return 'second'\n"
+        "def first():\n" "    return 'first'\n\n" "def second():\n" "    return 'second'\n"
     )
     source_file.write_text(source_text, encoding="utf-8")
 
@@ -114,14 +110,20 @@ def test_run_gui_full_workflow(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(QMainWindow, "show", lambda self: None)
     monkeypatch.setattr(QThread, "start", lambda self: self.started.emit())
     monkeypatch.setattr(QThread, "quit", lambda self: self.finished.emit())
-    monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *args, **kwargs: (str(export_path), ""))
-    monkeypatch.setattr(QDialog, "exec", lambda self: diff_dialog_titles.append(self.windowTitle()) or 0)
+    monkeypatch.setattr(
+        QFileDialog, "getSaveFileName", lambda *args, **kwargs: (str(export_path), "")
+    )
+    monkeypatch.setattr(
+        QDialog, "exec", lambda self: diff_dialog_titles.append(self.windowTitle()) or 0
+    )
     monkeypatch.setattr(QMessageBox, "information", lambda *args, **kwargs: 0)
     monkeypatch.setattr(QMessageBox, "warning", lambda *args, **kwargs: 0)
     monkeypatch.setattr(QMessageBox, "critical", lambda *args, **kwargs: 0)
 
     def _run_exec(self):
-        window = next(widget for widget in QApplication.topLevelWidgets() if hasattr(widget, "question_input"))
+        window = next(
+            widget for widget in QApplication.topLevelWidgets() if hasattr(widget, "question_input")
+        )
         window.question_input.setText("Where is the sample code?")
         response = window.qa.ask("Where is the sample code?", use_llm=False)
         window._on_query_finished(

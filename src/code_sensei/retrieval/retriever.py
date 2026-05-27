@@ -16,8 +16,8 @@ Design notes
 from __future__ import annotations
 
 import logging
-from time import perf_counter
 from dataclasses import dataclass, field
+from time import perf_counter
 
 from ..indexer.embedder import Embedder
 from .vector_store import VectorStore

@@ -6,10 +6,7 @@ Unit tests for code_sensei.memory.conversation.
 
 from __future__ import annotations
 
-import pytest
-
 from code_sensei.memory.conversation import ConversationMemory, Message
-
 
 # ---------------------------------------------------------------------------
 # Message
@@ -49,9 +46,7 @@ class TestConversationMemory:
     def test_add_assistant_message(self):
         mem = ConversationMemory()
         mem.add_assistant_message("Hi there!")
-        assert any(
-            m.role == "assistant" and m.content == "Hi there!" for m in mem.get_messages()
-        )
+        assert any(m.role == "assistant" and m.content == "Hi there!" for m in mem.get_messages())
 
     def test_message_count_increments(self):
         mem = ConversationMemory()

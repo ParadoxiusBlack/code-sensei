@@ -8,11 +8,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from code_sensei.indexer.chunker import Chunk, Chunker, _FallbackSplitter, _make_chunk_id
 from code_sensei.indexer.file_loader import SourceFile
-
 
 # ---------------------------------------------------------------------------
 # _make_chunk_id
@@ -115,8 +112,7 @@ class TestChunker:
 
     def test_chunk_files_flattens_results(self, tmp_path):
         files = [
-            _make_source_file(tmp_path, name=f"f{i}.py", content="x=1\n" * 20)
-            for i in range(3)
+            _make_source_file(tmp_path, name=f"f{i}.py", content="x=1\n" * 20) for i in range(3)
         ]
         chunker = Chunker(chunk_size=30, chunk_overlap=5)
         all_chunks = chunker.chunk_files(files)

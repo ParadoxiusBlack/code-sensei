@@ -50,7 +50,7 @@ class Message:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "Message":
+    def from_dict(cls, data: dict) -> Message:
         return cls(
             role=data["role"],
             content=data["content"],

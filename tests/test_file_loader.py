@@ -10,8 +10,11 @@ from pathlib import Path
 
 import pytest
 
-from code_sensei.indexer.file_loader import FileLoader, SourceFile, _infer_language, _is_likely_binary
-
+from code_sensei.indexer.file_loader import (
+    FileLoader,
+    _infer_language,
+    _is_likely_binary,
+)
 
 # ---------------------------------------------------------------------------
 # _infer_language

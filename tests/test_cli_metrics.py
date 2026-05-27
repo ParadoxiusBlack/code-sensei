@@ -53,7 +53,9 @@ def test_ask_command_prints_metrics(monkeypatch, tmp_path: Path):
             )
 
     monkeypatch.setattr("code_sensei.assistant.qa.CodeQA", DummyQA)
-    monkeypatch.setattr("code_sensei.cli._load_pipeline", lambda project_dir: (object(), object(), dummy_retriever))
+    monkeypatch.setattr(
+        "code_sensei.cli._load_pipeline", lambda project_dir: (object(), object(), dummy_retriever)
+    )
 
     result = runner.invoke(
         main,
@@ -122,13 +124,15 @@ def test_benchmark_command_writes_json(monkeypatch, tmp_path: Path):
     dataset = tmp_path / "dataset.json"
     output_json = tmp_path / "summary.json"
     dataset.write_text(
-        json.dumps([
-            {
-                "query": "Where is file loading implemented?",
-                "expected_sources": ["src/code_sensei/indexer/file_loader.py"],
-                "top_k": 3,
-            }
-        ]),
+        json.dumps(
+            [
+                {
+                    "query": "Where is file loading implemented?",
+                    "expected_sources": ["src/code_sensei/indexer/file_loader.py"],
+                    "top_k": 3,
+                }
+            ]
+        ),
         encoding="utf-8",
     )
 
@@ -145,7 +149,9 @@ def test_benchmark_command_writes_json(monkeypatch, tmp_path: Path):
                 )
             ]
 
-    monkeypatch.setattr("code_sensei.cli._load_pipeline", lambda project_dir: (object(), object(), DummyRetriever()))
+    monkeypatch.setattr(
+        "code_sensei.cli._load_pipeline", lambda project_dir: (object(), object(), DummyRetriever())
+    )
 
     result = runner.invoke(
         main,

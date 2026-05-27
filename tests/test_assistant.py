@@ -11,14 +11,11 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from code_sensei.assistant.doc_generator import DocGenerator, DocResult, DocStyle
 from code_sensei.assistant.qa import CodeQA, QAResponse
 from code_sensei.assistant.refactor import RefactorAdvisor, RefactorReport
-from code_sensei.assistant.test_generator import TestGenerator, TestGenerationResult
+from code_sensei.assistant.test_generator import TestGenerationResult, TestGenerator
 from code_sensei.retrieval.retriever import RetrievalResult
-
 
 # ---------------------------------------------------------------------------
 # Shared helpers
@@ -87,7 +84,10 @@ class TestCodeQA:
         qa.ask("Where is X?")
         r.search.assert_called_once()
         call_args = r.search.call_args
-        assert "Where is X?" in (call_args.args or ()) or call_args.kwargs.get("query") == "Where is X?"
+        assert (
+            "Where is X?" in (call_args.args or ())
+            or call_args.kwargs.get("query") == "Where is X?"
+        )
 
     def test_language_filter_forwarded(self):
         r = _make_retriever()
@@ -116,7 +116,9 @@ class TestCodeQA:
 
     def test_ask_uses_stream_path_to_build_answer(self):
         qa = _make_assistant(CodeQA)
-        with patch.object(CodeQA, "ask_stream", return_value=(iter(["a", "b"]), ["/src/foo.py"], [])):
+        with patch.object(
+            CodeQA, "ask_stream", return_value=(iter(["a", "b"]), ["/src/foo.py"], [])
+        ):
             response = qa.ask("q")
 
         assert response.answer == "ab"

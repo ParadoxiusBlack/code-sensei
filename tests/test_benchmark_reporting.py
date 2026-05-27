@@ -4,7 +4,12 @@ import json
 from pathlib import Path
 
 from code_sensei.evaluation.retrieval_benchmark import BenchmarkCaseResult, BenchmarkSummary
-from scripts.report_retrieval_benchmark_delta import append_warnings, build_markdown, collect_soft_regressions, main
+from scripts.report_retrieval_benchmark_delta import (
+    append_warnings,
+    build_markdown,
+    collect_soft_regressions,
+    main,
+)
 
 
 def test_build_markdown_contains_deltas():

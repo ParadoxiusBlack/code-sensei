@@ -125,9 +125,7 @@ class TestGenerator(_BaseAssistant):
             path_prefix=target if "/" in target or "\\" in target else None,
         )
 
-        inferred_language = language or (
-            results[0].language if results else "python"
-        )
+        inferred_language = language or (results[0].language if results else "python")
         context = self._format_context(results)
 
         prompt = _TEST_GEN_TEMPLATE.format(

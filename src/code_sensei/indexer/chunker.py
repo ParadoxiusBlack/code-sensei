@@ -18,8 +18,8 @@ from __future__ import annotations
 
 import hashlib
 import logging
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Sequence
 
 try:
     from config.settings import CHUNK_OVERLAP, CHUNK_SIZE
@@ -132,13 +132,9 @@ class Chunker:
                 chunk_overlap=self.chunk_overlap,
             )
         except Exception:  # pragma: no cover — langchain not installed in unit tests
-            return _FallbackSplitter(
-                chunk_size=self.chunk_size, chunk_overlap=self.chunk_overlap
-            )
+            return _FallbackSplitter(chunk_size=self.chunk_size, chunk_overlap=self.chunk_overlap)
 
-    def _texts_to_chunks(
-        self, texts: list[str], source_file: SourceFile
-    ) -> list[Chunk]:
+    def _texts_to_chunks(self, texts: list[str], source_file: SourceFile) -> list[Chunk]:
         """Convert raw text segments back to ``Chunk`` objects with offsets."""
         chunks: list[Chunk] = []
         cursor = 0
