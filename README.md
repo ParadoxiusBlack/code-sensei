@@ -342,6 +342,12 @@ black src/ tests/
 code-sensei benchmark-retrieval -p . -d benchmarks/retrieval/code_sensei_smoke.json
 ```
 
+## Additional Documentation
+
+- [docs/RECENT_CHANGES.md](docs/RECENT_CHANGES.md) — summary of the latest retrieval, CI, and observability changes plus the rationale behind them
+- [docs/FEATURE_PLAN.md](docs/FEATURE_PLAN.md) — execution-ready feature roadmap for the next delivery milestones
+- [docs/CHANGELOG.md](docs/CHANGELOG.md) — chronological change history
+
 ---
 
 ## Roadmap
@@ -350,6 +356,10 @@ code-sensei benchmark-retrieval -p . -d benchmarks/retrieval/code_sensei_smoke.j
 - [x] Phase 2 — Retrieval: improve ranking, add hybrid BM25 + vector search
 - [x] Phase 3 — Features: refine prompts, advanced error handling, performance tuning
 - [x] Phase 4 — GUI: PyQt6 front-end with integrated code viewer
+- [x] Phase 5 — Benchmarking, observability metrics, and CI delta reporting
+- [ ] Phase 6 — Streaming responses, fresher indexing workflows, and editor-facing integrations
+
+For the detailed follow-up plan, see [docs/FEATURE_PLAN.md](docs/FEATURE_PLAN.md).
 
 ---
 

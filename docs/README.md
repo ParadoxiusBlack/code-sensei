@@ -9,6 +9,8 @@ This folder contains detailed development documentation. Most casual users can i
 
 ### 🚀 **Features & Capabilities**
 - **[FEATURE_OVERVIEW.md](FEATURE_OVERVIEW.md)** — Detailed breakdown of all features
+- **[RECENT_CHANGES.md](RECENT_CHANGES.md)** — Explanation of the latest changes and the reasons behind them
+- **[FEATURE_PLAN.md](FEATURE_PLAN.md)** — Execution-ready plan for the next feature milestones
 - **[HYBRID_LLM_GUIDE.md](HYBRID_LLM_GUIDE.md)** — How to use local + cloud LLMs together
 
 ### 📦 **Distribution & Deployment**
