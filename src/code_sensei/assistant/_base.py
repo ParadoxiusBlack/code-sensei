@@ -25,6 +25,7 @@ try:
     from config.settings import (
         CHAT_MODEL,
         HYBRID_LLM_MODE,
+        LLM_PROVIDER,
         MAX_CHARS_PER_CHUNK,
         MAX_CHUNKS_PER_FILE,
         MAX_CONTEXT_CHARS,
@@ -39,6 +40,7 @@ except ImportError:
     TEMPERATURE = 0.2
     MAX_TOKENS = 2048
     HYBRID_LLM_MODE = True
+    LLM_PROVIDER = "auto"
     OLLAMA_BASE_URL = "http://localhost:11434"
     OLLAMA_MODEL = "mistral"
     OPENAI_API_KEY = ""
@@ -66,10 +68,13 @@ class _BaseAssistant:
     def __init__(
         self,
         model: str | None = None,
+        provider: str | None = None,
         temperature: float | None = None,
         max_tokens: int | None = None,
     ) -> None:
         self.model = model or CHAT_MODEL
+        #: Explicit LLM provider (``None`` keeps the legacy auto/hybrid behaviour).
+        self.provider = provider
         self.temperature = temperature if temperature is not None else TEMPERATURE
         self.max_tokens = max_tokens if max_tokens is not None else MAX_TOKENS
         #: Human-readable explanation of why the LLM is unavailable (None = OK).
@@ -81,7 +86,34 @@ class _BaseAssistant:
     # ------------------------------------------------------------------
 
     def _build_llm(self):  # type: ignore[return]
-        """Build LLM with hybrid fallback: Ollama → OpenAI → None."""
+        """Build LLM, routing by explicit provider or falling back to hybrid auto."""
+        if self.provider is not None:
+            return self._build_llm_for_provider(self.provider)
+        # Legacy auto/hybrid behaviour when no provider is explicitly chosen.
+        return self._build_llm_auto()
+
+    def _build_llm_for_provider(self, provider: str):  # type: ignore[return]
+        """Directly build LLM for a specific named provider."""
+        dispatch = {
+            "ollama": lambda: self._try_ollama(self.model),
+            "openai": lambda: self._try_openai(self.model),
+            "anthropic": lambda: self._try_anthropic(self.model),
+            "copilot": lambda: self._try_copilot(self.model),
+            "azure_openai": lambda: self._try_azure_openai(self.model),
+        }
+        builder = dispatch.get(provider)
+        if builder is None:
+            self.llm_init_error = f"Unknown LLM provider '{provider}'."
+            return None
+        llm = builder()
+        if llm is not None:
+            logger.info("Using %s LLM (%s)", provider, self.model)
+        elif not self.llm_init_error:
+            self.llm_init_error = f"Could not connect to LLM provider '{provider}'."
+        return llm
+
+    def _build_llm_auto(self):  # type: ignore[return]
+        """Hybrid fallback: Ollama → OpenAI → None."""
         if HYBRID_LLM_MODE:
             # Try Ollama first (local, no API key needed)
             llm = self._try_ollama()
@@ -108,7 +140,7 @@ class _BaseAssistant:
             )
             return None
         else:
-            # Original behavior: OpenAI only
+            # Original behaviour: OpenAI only
             try:
                 from langchain_openai import ChatOpenAI
 
@@ -127,17 +159,18 @@ class _BaseAssistant:
                 )
                 return None
 
-    def _try_ollama(self):  # type: ignore[return]
+    def _try_ollama(self, model: str | None = None):  # type: ignore[return]
         """Attempt to connect to local Ollama instance.
 
         On failure sets ``self.llm_init_error`` with an actionable message
         so the CLI can surface it to the user.
         """
+        model_name = model or OLLAMA_MODEL
         try:
             from langchain_ollama import OllamaLLM
 
             llm = OllamaLLM(
-                model=OLLAMA_MODEL,
+                model=model_name,
                 base_url=OLLAMA_BASE_URL,
                 temperature=self.temperature,
             )
@@ -157,7 +190,7 @@ class _BaseAssistant:
                 self.llm_init_error = f"{err}  Hint: {err.hint}"
                 logger.debug("Ollama connection refused: %s", exc)
             elif "not found" in exc_lower or "404" in exc_lower:
-                err = ModelNotFoundError(OLLAMA_MODEL)
+                err = ModelNotFoundError(model_name)
                 self.llm_init_error = f"{err}  Hint: {err.hint}"
                 logger.debug("Ollama model not found: %s", exc)
             else:
@@ -165,18 +198,92 @@ class _BaseAssistant:
                 logger.debug("Ollama not available: %s", exc)
             return None
 
-    def _try_openai(self):  # type: ignore[return]
+    def _try_openai(self, model: str | None = None):  # type: ignore[return]
         """Attempt to connect to OpenAI API."""
+        model_name = model or CHAT_MODEL
         try:
             from langchain_openai import ChatOpenAI
 
             return ChatOpenAI(
-                model=self.model,
+                model=model_name,
                 temperature=self.temperature,
                 max_tokens=self.max_tokens,
             )
         except Exception as exc:
             logger.debug("OpenAI not available: %s", exc)
+            return None
+
+    def _try_anthropic(self, model: str | None = None):  # type: ignore[return]
+        """Attempt to connect to Anthropic API."""
+        model_name = model or "claude-3-5-sonnet-20241022"
+        try:
+            from langchain_anthropic import ChatAnthropic
+
+            return ChatAnthropic(
+                model=model_name,
+                temperature=self.temperature,
+                max_tokens=self.max_tokens,
+            )
+        except Exception as exc:
+            self.llm_init_error = (
+                f"Anthropic unavailable: {exc}  "
+                "Ensure ANTHROPIC_API_KEY is set in .env or LLM Settings."
+            )
+            logger.debug("Anthropic not available: %s", exc)
+            return None
+
+    def _try_copilot(self, model: str | None = None):  # type: ignore[return]
+        """Connect to the GitHub Copilot API (OpenAI-compatible endpoint)."""
+        import os
+
+        token = os.environ.get("GITHUB_COPILOT_TOKEN", "")
+        if not token:
+            self.llm_init_error = (
+                "GitHub Copilot token not configured. "
+                "Add GITHUB_COPILOT_TOKEN to .env or open \u2699 LLM Settings."
+            )
+            return None
+        model_name = model or "gpt-4o"
+        try:
+            from langchain_openai import ChatOpenAI
+
+            return ChatOpenAI(
+                model=model_name,
+                temperature=self.temperature,
+                max_tokens=self.max_tokens,
+                api_key=token,
+                base_url="https://api.githubcopilot.com",
+            )
+        except Exception as exc:
+            self.llm_init_error = f"GitHub Copilot connection failed: {exc}"
+            logger.debug("GitHub Copilot not available: %s", exc)
+            return None
+
+    def _try_azure_openai(self, model: str | None = None):  # type: ignore[return]
+        """Attempt to connect to Azure OpenAI."""
+        try:
+            from config.settings import (
+                AZURE_OPENAI_API_VERSION,
+                AZURE_OPENAI_DEPLOYMENT,
+                AZURE_OPENAI_ENDPOINT,
+            )
+        except ImportError:
+            AZURE_OPENAI_ENDPOINT = ""
+            AZURE_OPENAI_DEPLOYMENT = model or ""
+            AZURE_OPENAI_API_VERSION = "2024-02-01"
+        try:
+            from langchain_openai import AzureChatOpenAI
+
+            return AzureChatOpenAI(
+                azure_deployment=AZURE_OPENAI_DEPLOYMENT,
+                azure_endpoint=AZURE_OPENAI_ENDPOINT,
+                api_version=AZURE_OPENAI_API_VERSION,
+                temperature=self.temperature,
+                max_tokens=self.max_tokens,
+            )
+        except Exception as exc:
+            self.llm_init_error = f"Azure OpenAI unavailable: {exc}"
+            logger.debug("Azure OpenAI not available: %s", exc)
             return None
 
     def _format_context(
@@ -235,17 +342,40 @@ class _BaseAssistant:
         user_clean = user_prompt.strip()
         return f"{sys_clean}\n\n{user_clean}"
 
+    def _record_token_usage(self, response: object) -> None:
+        """Extract token counts from an LLM response and persist them."""
+        try:
+            metadata = getattr(response, "response_metadata", {}) or {}
+            usage = (
+                metadata.get("token_usage")
+                or metadata.get("usage")
+                or getattr(response, "usage_metadata", {})
+                or {}
+            )
+            if not usage:
+                return
+            input_tokens = usage.get("prompt_tokens", 0) or usage.get("input_tokens", 0)
+            output_tokens = usage.get("completion_tokens", 0) or usage.get("output_tokens", 0)
+            if input_tokens or output_tokens:
+                from code_sensei.usage_tracker import get_tracker
+
+                provider = self.provider or "auto"
+                get_tracker().record(provider, self.model, input_tokens, output_tokens)
+        except Exception:
+            pass  # Never let tracking errors affect the main response flow
+
     def _invoke(self, prompt: str) -> str:
         """Call the LLM and return the text response."""
         if self._llm is None:
             return (
-                "[LLM not available — set a valid API key in .env to get real responses.]\n"
+                "[LLM not available \u2014 set a valid API key in .env to get real responses.]\n"
                 f"Prompt received:\n{prompt[:200]}..."
             )
         try:
             from langchain_core.messages import HumanMessage
 
             response = self._llm.invoke([HumanMessage(content=prompt)])
+            self._record_token_usage(response)
             return self._response_to_text(response)
         except Exception as exc:
             logger.error("LLM invocation failed: %s", exc)
@@ -264,10 +394,15 @@ class _BaseAssistant:
             from langchain_core.messages import HumanMessage
 
             if hasattr(self._llm, "stream"):
+                last_chunk = None
                 for chunk in self._llm.stream([HumanMessage(content=prompt)]):
                     text = self._response_to_text(chunk)
+                    last_chunk = chunk
                     if text:
                         yield text
+                # The final chunk from ChatOpenAI carries usage metadata.
+                if last_chunk is not None:
+                    self._record_token_usage(last_chunk)
                 return
 
             # Fallback for LLM wrappers that do not implement stream.

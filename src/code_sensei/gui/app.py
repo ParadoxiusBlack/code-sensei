@@ -33,6 +33,69 @@ except ImportError:
     EMBEDDING_MODEL = "nomic-embed-text"
     EMBEDDING_PROVIDER = "ollama"
 
+try:
+    from config.settings import COPILOT_MONTHLY_PREMIUM_LIMIT, OLLAMA_MODEL as _OLLAMA_MODEL
+except ImportError:
+    COPILOT_MONTHLY_PREMIUM_LIMIT = 300
+    _OLLAMA_MODEL = "mistral"
+
+from code_sensei.usage_tracker import COPILOT_PREMIUM_MODELS, get_tracker
+
+# ---------------------------------------------------------------------------
+# LLM provider / model options shown in the GUI selector.
+# Each entry: (provider, model, label)
+# provider="auto" keeps the legacy Ollama-first hybrid behaviour.
+# ---------------------------------------------------------------------------
+_LLM_OPTIONS: list[tuple[str, str, str]] = [
+    ("auto", "", "Auto (Ollama \u2192 OpenAI)"),
+    ("ollama", _OLLAMA_MODEL, f"Ollama \u2014 {_OLLAMA_MODEL} (local)"),
+    ("openai", "gpt-4o", "OpenAI \u2014 gpt-4o"),
+    ("openai", "gpt-4o-mini", "OpenAI \u2014 gpt-4o-mini"),
+    ("anthropic", "claude-3-5-sonnet-20241022", "Anthropic \u2014 claude-3-5-sonnet"),
+    ("copilot", "gpt-4o", "GitHub Copilot \u2014 gpt-4o (included)"),
+    ("copilot", "gpt-4o-mini", "GitHub Copilot \u2014 gpt-4o-mini (included)"),
+    ("copilot", "claude-3.5-sonnet", "GitHub Copilot \u2014 claude-3.5-sonnet \u2b50"),
+    ("copilot", "claude-3.7-sonnet", "GitHub Copilot \u2014 claude-3.7-sonnet \u2b50"),
+    ("copilot", "o3-mini", "GitHub Copilot \u2014 o3-mini \u2b50"),
+    ("copilot", "gemini-2.0-flash", "GitHub Copilot \u2014 gemini-2.0-flash \u2b50"),
+]
+
+# ---------------------------------------------------------------------------
+# User-level settings persistence  (~/.code_sensei/.env)
+# API keys entered via the GUI Settings dialog are written here so they
+# survive across sessions without being committed to any project repo.
+# ---------------------------------------------------------------------------
+_USER_SETTINGS_FILE = Path.home() / ".code_sensei" / ".env"
+
+
+def _load_user_settings() -> None:
+    """Load persisted user-level settings into os.environ (non-destructive)."""
+    import os
+
+    from dotenv import dotenv_values
+
+    if not _USER_SETTINGS_FILE.exists():
+        return
+    for key, value in dotenv_values(str(_USER_SETTINGS_FILE)).items():
+        if key not in os.environ and value is not None:
+            os.environ[key] = value
+
+
+def _save_user_settings(updates: dict[str, str]) -> None:
+    """Persist key=value pairs to the user-level settings file and os.environ."""
+    import os
+
+    from dotenv import dotenv_values
+
+    _USER_SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    existing = dict(dotenv_values(str(_USER_SETTINGS_FILE))) if _USER_SETTINGS_FILE.exists() else {}
+    existing.update(updates)
+    lines = [f'{k}={v}\n' for k, v in existing.items()]
+    _USER_SETTINGS_FILE.write_text("".join(lines), encoding="utf-8")
+    # Also update the live environment so the current process picks them up.
+    for k, v in updates.items():
+        os.environ[k] = v
+
 
 def _sanitize_collection_part(value: str) -> str:
     """Convert provider/model names into a stable Chroma-safe token."""
@@ -266,8 +329,11 @@ def run_gui(project_dir: str = ".", top_k: int = 8, use_llm: bool = True) -> int
         from PyQt6.QtWidgets import (
             QApplication,
             QCheckBox,
+            QComboBox,
             QDialog,
+            QDialogButtonBox,
             QFileDialog,
+            QFormLayout,
             QHBoxLayout,
             QLabel,
             QLineEdit,
@@ -276,7 +342,9 @@ def run_gui(project_dir: str = ".", top_k: int = 8, use_llm: bool = True) -> int
             QMainWindow,
             QMessageBox,
             QPlainTextEdit,
+            QProgressBar,
             QPushButton,
+            QSpinBox,
             QSplitter,
             QTabWidget,
             QTextEdit,
@@ -479,6 +547,101 @@ def run_gui(project_dir: str = ".", top_k: int = 8, use_llm: bool = True) -> int
 
             self.setLayout(layout)
 
+    class LLMSettingsDialog(QDialog):
+        """Dialog for configuring LLM API keys and Copilot options."""
+
+        def __init__(self, parent=None):
+            import os
+
+            super().__init__(parent)
+            self.setWindowTitle("LLM Settings")
+            self.setMinimumWidth(480)
+
+            form = QFormLayout()
+
+            self._copilot_token = QLineEdit(os.environ.get("GITHUB_COPILOT_TOKEN", ""))
+            self._copilot_token.setEchoMode(QLineEdit.EchoMode.Password)
+            self._copilot_token.setPlaceholderText("ghp_... or ghu_...")
+            form.addRow("GitHub Copilot Token:", self._copilot_token)
+
+            self._openai_key = QLineEdit(os.environ.get("OPENAI_API_KEY", ""))
+            self._openai_key.setEchoMode(QLineEdit.EchoMode.Password)
+            self._openai_key.setPlaceholderText("sk-...")
+            form.addRow("OpenAI API Key:", self._openai_key)
+
+            self._anthropic_key = QLineEdit(os.environ.get("ANTHROPIC_API_KEY", ""))
+            self._anthropic_key.setEchoMode(QLineEdit.EchoMode.Password)
+            self._anthropic_key.setPlaceholderText("sk-ant-...")
+            form.addRow("Anthropic API Key:", self._anthropic_key)
+
+            self._ollama_url = QLineEdit(
+                os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
+            )
+            form.addRow("Ollama Base URL:", self._ollama_url)
+
+            self._ollama_model = QLineEdit(os.environ.get("OLLAMA_MODEL", "mistral"))
+            form.addRow("Ollama Model:", self._ollama_model)
+
+            self._premium_limit = QSpinBox()
+            self._premium_limit.setRange(1, 10000)
+            try:
+                self._premium_limit.setValue(
+                    int(os.environ.get("COPILOT_MONTHLY_PREMIUM_LIMIT", "300"))
+                )
+            except ValueError:
+                self._premium_limit.setValue(300)
+            form.addRow("Copilot Monthly Premium Limit:", self._premium_limit)
+
+            note = QLabel(
+                "<small><i>Individual plan: 300 premium requests/month. "
+                "Business: check your admin settings.<br>"
+                "Keys are saved to <tt>~/.code_sensei/.env</tt> — "
+                "never committed to your project.</i></small>"
+            )
+            note.setWordWrap(True)
+            form.addRow(note)
+
+            reset_btn = QPushButton("Reset Copilot Usage Stats")
+            reset_btn.clicked.connect(self._on_reset_copilot)
+            form.addRow(reset_btn)
+
+            buttons = QDialogButtonBox(
+                QDialogButtonBox.StandardButton.Save
+                | QDialogButtonBox.StandardButton.Cancel
+            )
+            buttons.accepted.connect(self._on_save)
+            buttons.rejected.connect(self.reject)
+
+            outer = QVBoxLayout()
+            outer.addLayout(form)
+            outer.addWidget(buttons)
+            self.setLayout(outer)
+
+        def _on_save(self) -> None:
+            updates: dict[str, str] = {}
+            if self._copilot_token.text().strip():
+                updates["GITHUB_COPILOT_TOKEN"] = self._copilot_token.text().strip()
+            if self._openai_key.text().strip():
+                updates["OPENAI_API_KEY"] = self._openai_key.text().strip()
+            if self._anthropic_key.text().strip():
+                updates["ANTHROPIC_API_KEY"] = self._anthropic_key.text().strip()
+            updates["OLLAMA_BASE_URL"] = self._ollama_url.text().strip()
+            updates["OLLAMA_MODEL"] = self._ollama_model.text().strip()
+            updates["COPILOT_MONTHLY_PREMIUM_LIMIT"] = str(self._premium_limit.value())
+            _save_user_settings(updates)
+            self.accept()
+
+        def _on_reset_copilot(self) -> None:
+            reply = QMessageBox.question(
+                self,
+                "Reset Copilot Usage",
+                "Reset all locally-tracked Copilot request counts to zero?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            )
+            if reply == QMessageBox.StandardButton.Yes:
+                get_tracker().reset_copilot()
+                QMessageBox.information(self, "Reset", "Copilot usage stats reset.")
+
     class QueryWorker(QObject):
         finished = pyqtSignal(object)
         failed = pyqtSignal(str)
@@ -574,9 +737,37 @@ def run_gui(project_dir: str = ".", top_k: int = 8, use_llm: bool = True) -> int
 
             root_layout.addLayout(project_row)
 
-            splitter = QSplitter()
+            # ------------------------------------------------------------------
+            # LLM selector row
+            # ------------------------------------------------------------------
+            llm_row = QHBoxLayout()
+            llm_row.addWidget(QLabel("LLM:"))
 
-            # Left pane: chat/answer interaction
+            self.llm_combo = QComboBox()
+            for _prov, _mdl, _lbl in _LLM_OPTIONS:
+                self.llm_combo.addItem(_lbl)
+            self.llm_combo.currentIndexChanged.connect(self._on_llm_changed)
+            llm_row.addWidget(self.llm_combo, stretch=1)
+
+            self.llm_settings_button = QPushButton("\u2699 LLM Settings\u2026")
+            self.llm_settings_button.clicked.connect(self._on_llm_settings)
+            llm_row.addWidget(self.llm_settings_button)
+
+            # Copilot usage bar (visible only when a premium Copilot model is active)
+            self.copilot_usage_label = QLabel()
+            self.copilot_usage_label.setVisible(False)
+            llm_row.addWidget(self.copilot_usage_label)
+
+            self.copilot_usage_bar = QProgressBar()
+            self.copilot_usage_bar.setMinimum(0)
+            self.copilot_usage_bar.setMaximum(100)
+            self.copilot_usage_bar.setFixedWidth(140)
+            self.copilot_usage_bar.setVisible(False)
+            llm_row.addWidget(self.copilot_usage_bar)
+
+            root_layout.addLayout(llm_row)
+
+            splitter = QSplitter()
             left = QWidget()
             left_layout = QVBoxLayout(left)
 
@@ -1011,12 +1202,20 @@ def run_gui(project_dir: str = ".", top_k: int = 8, use_llm: bool = True) -> int
 
         def _on_index_finished(self, result: IndexResult) -> None:
             self._set_project_root(result.root)
+            idx = self.llm_combo.currentIndex()
+            provider, model, _ = _LLM_OPTIONS[idx] if 0 <= idx < len(_LLM_OPTIONS) else ("auto", "", "")
             retriever = _build_retriever(result.root)
-            self.qa = CodeQA(retriever=retriever, top_k=self.top_k)
+            self.qa = CodeQA(
+                retriever=retriever,
+                top_k=self.top_k,
+                model=model or None,
+                provider=None if provider == "auto" else provider,
+            )
             self._latest_results = []
             self.sources_list.clear()
             self.code_view.clear()
             self._refresh_project_status()
+            self._refresh_usage_display()
 
             self.answer_view.append(
                 "[Index complete] " f"Files: {result.total_files}, chunks: {result.total_chunks}\n"
@@ -1070,7 +1269,84 @@ def run_gui(project_dir: str = ".", top_k: int = 8, use_llm: bool = True) -> int
             self._append_status(f"Saved: {self._current_edit_file}")
             self.answer_view.append(f"[Saved] {self._current_edit_file}\n")
 
-    app = QApplication(sys.argv)
+        # ------------------------------------------------------------------
+        # LLM selector helpers
+        # ------------------------------------------------------------------
+
+        def _on_llm_changed(self, index: int) -> None:
+            """Rebuild CodeQA with the newly selected provider/model."""
+            if index < 0 or index >= len(_LLM_OPTIONS):
+                return
+            provider, model, label = _LLM_OPTIONS[index]
+            # provider="auto" means keep legacy hybrid behaviour (provider=None).
+            explicit_provider = None if provider == "auto" else provider
+            explicit_model = model or None
+            new_qa = CodeQA(
+                retriever=self.qa.retriever,
+                top_k=self.top_k,
+                model=explicit_model,
+                provider=explicit_provider,
+            )
+            self.qa = new_qa
+            if new_qa.llm_init_error:
+                self._append_status(f"LLM warning: {new_qa.llm_init_error}")
+            else:
+                self._append_status(f"LLM switched to: {label}")
+            self._refresh_usage_display()
+
+        def _on_llm_settings(self) -> None:
+            """Open the LLM Settings dialog."""
+            dlg = LLMSettingsDialog(self)
+            if dlg.exec() == QDialog.DialogCode.Accepted:
+                # Re-apply the current LLM selection so any new keys take effect.
+                self._on_llm_changed(self.llm_combo.currentIndex())
+                self._refresh_usage_display()
+
+        def _refresh_usage_display(self) -> None:
+            """Update the Copilot usage bar based on the active model."""
+            import os
+
+            idx = self.llm_combo.currentIndex()
+            if idx < 0 or idx >= len(_LLM_OPTIONS):
+                self.copilot_usage_label.setVisible(False)
+                self.copilot_usage_bar.setVisible(False)
+                return
+
+            provider, model, _ = _LLM_OPTIONS[idx]
+            if provider != "copilot":
+                self.copilot_usage_label.setVisible(False)
+                self.copilot_usage_bar.setVisible(False)
+                return
+
+            if model not in COPILOT_PREMIUM_MODELS:
+                self.copilot_usage_label.setText("Copilot \u2714 Included model")
+                self.copilot_usage_label.setVisible(True)
+                self.copilot_usage_bar.setVisible(False)
+                return
+
+            try:
+                limit = int(os.environ.get("COPILOT_MONTHLY_PREMIUM_LIMIT", "300"))
+            except ValueError:
+                limit = 300
+            used = get_tracker().get_copilot_premium_requests()
+            pct = min(100, int(used * 100 / limit)) if limit > 0 else 0
+            self.copilot_usage_label.setText(f"Copilot \u2b50 {used}/{limit}")
+            self.copilot_usage_bar.setValue(pct)
+            # Colour the bar: green < 70 %, amber < 90 %, red >= 90 %
+            if pct >= 90:
+                colour = "#d9534f"
+            elif pct >= 70:
+                colour = "#f0ad4e"
+            else:
+                colour = "#5cb85c"
+            self.copilot_usage_bar.setStyleSheet(
+                f"QProgressBar::chunk {{ background-color: {colour}; }}"
+            )
+            self.copilot_usage_label.setVisible(True)
+            self.copilot_usage_bar.setVisible(True)
+
+    # Load persisted user-level settings (API keys etc.) before building any LLM.
+    _load_user_settings()
 
     root = Path(project_dir).resolve()
     retriever = _build_retriever(root)

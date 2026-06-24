@@ -90,6 +90,8 @@ class VectorStore:
 
     def upsert(self, embedded_chunks: Sequence[EmbeddedChunk]) -> None:
         """Insert or update embedded chunks in the collection."""
+        if not embedded_chunks:
+            return
         if self._collection is None:
             raise RuntimeError("VectorStore is not connected. Call connect() first.")
 

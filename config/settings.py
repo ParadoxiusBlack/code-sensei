@@ -51,6 +51,11 @@ AZURE_OPENAI_ENDPOINT: str = _get("AZURE_OPENAI_ENDPOINT")
 AZURE_OPENAI_API_VERSION: str = _get("AZURE_OPENAI_API_VERSION", "2024-02-01")
 AZURE_OPENAI_DEPLOYMENT: str = _get("AZURE_OPENAI_DEPLOYMENT")
 
+# GitHub Copilot configuration
+GITHUB_COPILOT_TOKEN: str = _get("GITHUB_COPILOT_TOKEN")
+# Monthly premium-request allowance for the plan (Individual=300, Business=varies).
+COPILOT_MONTHLY_PREMIUM_LIMIT: int = _get_int("COPILOT_MONTHLY_PREMIUM_LIMIT", 300)
+
 # Ollama configuration (for local LLM inference)
 OLLAMA_BASE_URL: str = _get("OLLAMA_BASE_URL", "http://localhost:11434")
 OLLAMA_MODEL: str = _get("OLLAMA_MODEL", "mistral")
