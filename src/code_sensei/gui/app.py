@@ -323,11 +323,25 @@ def run_gui(project_dir: str = ".", top_k: int = 8, use_llm: bool = True) -> int
 
     Returns process exit code.
     """
+    # QApplication MUST be created before any other Qt object or GUI module is
+    # initialised.  Import just QApplication first, construct it, then import
+    # the rest of the PyQt6 stack.
+    try:
+        from PyQt6.QtWidgets import QApplication
+    except Exception as exc:
+        raise RuntimeError(
+            "PyQt6 not found. Install with: pip install PyQt6. "
+            f"Original error: {exc}"
+        ) from exc
+
+    app = QApplication(sys.argv)
+    # Load persisted user-level settings (API keys etc.) before building any LLM.
+    _load_user_settings()
+
     try:
         from PyQt6.QtCore import QObject, QSize, Qt, QThread, pyqtSignal
         from PyQt6.QtGui import QColor, QFileSystemModel, QFont, QPainter, QTextCursor
         from PyQt6.QtWidgets import (
-            QApplication,
             QCheckBox,
             QComboBox,
             QDialog,
@@ -354,7 +368,8 @@ def run_gui(project_dir: str = ".", top_k: int = 8, use_llm: bool = True) -> int
         )
     except Exception as exc:
         raise RuntimeError(
-            "PyQt6 GUI imports failed. Install with: pip install PyQt6. " f"Original error: {exc}"
+            "PyQt6 GUI imports failed. Install with: pip install PyQt6. "
+            f"Original error: {exc}"
         ) from exc
 
     class ClickableCodeView(QPlainTextEdit):
@@ -1344,9 +1359,6 @@ def run_gui(project_dir: str = ".", top_k: int = 8, use_llm: bool = True) -> int
             )
             self.copilot_usage_label.setVisible(True)
             self.copilot_usage_bar.setVisible(True)
-
-    # Load persisted user-level settings (API keys etc.) before building any LLM.
-    _load_user_settings()
 
     root = Path(project_dir).resolve()
     retriever = _build_retriever(root)
