@@ -331,7 +331,7 @@ def run_gui(project_dir: str = ".", top_k: int = 8, use_llm: bool = True) -> int
         from PyQt6.QtWidgets import QApplication
     except Exception as exc:
         raise RuntimeError(
-            "PyQt6 not found. Install with: pip install PyQt6. " f"Original error: {exc}"
+            f"PyQt6 not found. Install with: pip install PyQt6. Original error: {exc}"
         ) from exc
 
     app = QApplication(sys.argv)
@@ -368,7 +368,7 @@ def run_gui(project_dir: str = ".", top_k: int = 8, use_llm: bool = True) -> int
         )
     except Exception as exc:
         raise RuntimeError(
-            "PyQt6 GUI imports failed. Install with: pip install PyQt6. " f"Original error: {exc}"
+            f"PyQt6 GUI imports failed. Install with: pip install PyQt6. Original error: {exc}"
         ) from exc
 
     class ClickableCodeView(QPlainTextEdit):
