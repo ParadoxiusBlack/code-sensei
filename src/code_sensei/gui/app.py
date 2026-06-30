@@ -34,7 +34,8 @@ except ImportError:
     EMBEDDING_PROVIDER = "ollama"
 
 try:
-    from config.settings import COPILOT_MONTHLY_PREMIUM_LIMIT, OLLAMA_MODEL as _OLLAMA_MODEL
+    from config.settings import COPILOT_MONTHLY_PREMIUM_LIMIT
+    from config.settings import OLLAMA_MODEL as _OLLAMA_MODEL
 except ImportError:
     COPILOT_MONTHLY_PREMIUM_LIMIT = 300
     _OLLAMA_MODEL = "mistral"
@@ -90,7 +91,7 @@ def _save_user_settings(updates: dict[str, str]) -> None:
     _USER_SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
     existing = dict(dotenv_values(str(_USER_SETTINGS_FILE))) if _USER_SETTINGS_FILE.exists() else {}
     existing.update(updates)
-    lines = [f'{k}={v}\n' for k, v in existing.items()]
+    lines = [f"{k}={v}\n" for k, v in existing.items()]
     _USER_SETTINGS_FILE.write_text("".join(lines), encoding="utf-8")
     # Also update the live environment so the current process picks them up.
     for k, v in updates.items():
@@ -330,8 +331,7 @@ def run_gui(project_dir: str = ".", top_k: int = 8, use_llm: bool = True) -> int
         from PyQt6.QtWidgets import QApplication
     except Exception as exc:
         raise RuntimeError(
-            "PyQt6 not found. Install with: pip install PyQt6. "
-            f"Original error: {exc}"
+            "PyQt6 not found. Install with: pip install PyQt6. " f"Original error: {exc}"
         ) from exc
 
     app = QApplication(sys.argv)
@@ -368,8 +368,7 @@ def run_gui(project_dir: str = ".", top_k: int = 8, use_llm: bool = True) -> int
         )
     except Exception as exc:
         raise RuntimeError(
-            "PyQt6 GUI imports failed. Install with: pip install PyQt6. "
-            f"Original error: {exc}"
+            "PyQt6 GUI imports failed. Install with: pip install PyQt6. " f"Original error: {exc}"
         ) from exc
 
     class ClickableCodeView(QPlainTextEdit):
@@ -621,8 +620,7 @@ def run_gui(project_dir: str = ".", top_k: int = 8, use_llm: bool = True) -> int
             form.addRow(reset_btn)
 
             buttons = QDialogButtonBox(
-                QDialogButtonBox.StandardButton.Save
-                | QDialogButtonBox.StandardButton.Cancel
+                QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
             )
             buttons.accepted.connect(self._on_save)
             buttons.rejected.connect(self.reject)
@@ -1218,7 +1216,9 @@ def run_gui(project_dir: str = ".", top_k: int = 8, use_llm: bool = True) -> int
         def _on_index_finished(self, result: IndexResult) -> None:
             self._set_project_root(result.root)
             idx = self.llm_combo.currentIndex()
-            provider, model, _ = _LLM_OPTIONS[idx] if 0 <= idx < len(_LLM_OPTIONS) else ("auto", "", "")
+            provider, model, _ = (
+                _LLM_OPTIONS[idx] if 0 <= idx < len(_LLM_OPTIONS) else ("auto", "", "")
+            )
             retriever = _build_retriever(result.root)
             self.qa = CodeQA(
                 retriever=retriever,
