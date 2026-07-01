@@ -18,6 +18,8 @@ from __future__ import annotations
 import logging
 from collections.abc import Iterator, Sequence
 
+from pydantic import SecretStr
+
 from ..errors import ModelNotFoundError, OllamaConnectionError
 from ..retrieval.retriever import RetrievalResult
 
@@ -147,7 +149,7 @@ class _BaseAssistant:
                 return ChatOpenAI(
                     model=self.model,
                     temperature=self.temperature,
-                    max_tokens=self.max_tokens,
+                    max_completion_tokens=self.max_tokens,
                 )
             except Exception as exc:
                 logger.warning(
@@ -190,8 +192,8 @@ class _BaseAssistant:
                 self.llm_init_error = f"{err}  Hint: {err.hint}"
                 logger.debug("Ollama connection refused: %s", exc)
             elif "not found" in exc_lower or "404" in exc_lower:
-                err = ModelNotFoundError(model_name)
-                self.llm_init_error = f"{err}  Hint: {err.hint}"
+                model_err = ModelNotFoundError(model_name)
+                self.llm_init_error = f"{model_err}  Hint: {model_err.hint}"
                 logger.debug("Ollama model not found: %s", exc)
             else:
                 self.llm_init_error = f"Ollama unavailable: {exc}"
@@ -207,7 +209,7 @@ class _BaseAssistant:
             return ChatOpenAI(
                 model=model_name,
                 temperature=self.temperature,
-                max_tokens=self.max_tokens,
+                max_completion_tokens=self.max_tokens,
             )
         except Exception as exc:
             logger.debug("OpenAI not available: %s", exc)
@@ -219,10 +221,10 @@ class _BaseAssistant:
         try:
             from langchain_anthropic import ChatAnthropic
 
-            return ChatAnthropic(
-                model=model_name,
+            return ChatAnthropic(  # type: ignore[call-arg]
+                model_name=model_name,
                 temperature=self.temperature,
-                max_tokens=self.max_tokens,
+                max_tokens_to_sample=self.max_tokens,
             )
         except Exception as exc:
             self.llm_init_error = (
@@ -250,8 +252,8 @@ class _BaseAssistant:
             return ChatOpenAI(
                 model=model_name,
                 temperature=self.temperature,
-                max_tokens=self.max_tokens,
-                api_key=token,
+                max_completion_tokens=self.max_tokens,
+                api_key=SecretStr(token),
                 base_url="https://api.githubcopilot.com",
             )
         except Exception as exc:
@@ -279,7 +281,7 @@ class _BaseAssistant:
                 azure_endpoint=AZURE_OPENAI_ENDPOINT,
                 api_version=AZURE_OPENAI_API_VERSION,
                 temperature=self.temperature,
-                max_tokens=self.max_tokens,
+                max_completion_tokens=self.max_tokens,
             )
         except Exception as exc:
             self.llm_init_error = f"Azure OpenAI unavailable: {exc}"
