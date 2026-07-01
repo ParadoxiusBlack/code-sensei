@@ -221,7 +221,7 @@ class _BaseAssistant:
         try:
             from langchain_anthropic import ChatAnthropic
 
-            return ChatAnthropic(  # type: ignore[call-arg]
+            return ChatAnthropic(  # type: ignore[call-arg]  # mypy misreads Pydantic field aliases (timeout/stop) as required args
                 model_name=model_name,
                 temperature=self.temperature,
                 max_tokens_to_sample=self.max_tokens,
